@@ -1,4 +1,5 @@
-from typing import NoReturn
+from __future__ import annotations
+from typing import NoReturn, TYPE_CHECKING, Optional
 
 from pygments.token import Token, Name, Whitespace, Number
 
@@ -6,15 +7,17 @@ from lexer import Lexer
 from statement import ModuleBlock, Class, VTable, VTableEntry
 from exeptions import ParseException
 
-TokenType = tuple[Token, str]
+if TYPE_CHECKING:
+    from pygments.token import _TokenType
+    TokenType = tuple[_TokenType, str]
 
 
 class InheritanceParser:
-    def __init__(self, token_stream):
+    def __init__(self, token_stream) -> None:
         self._token_stream = token_stream
 
-        self._current: TokenType = ...
-        self._previous: TokenType = ...
+        self._current: TokenType = (Token, '')
+        self._previous: TokenType = (Token, '')
 
     def _advance(self) -> None:
         self._previous = self._current
@@ -23,7 +26,7 @@ class InheritanceParser:
         except StopIteration:
             self._current = (Token.EOF, 'EOF')
 
-    def _consume(self, token_type: Token, message: str) -> TokenType | NoReturn:
+    def _consume(self, token_type: _TokenType, message: str) -> TokenType | NoReturn:
         if self._current[0] == token_type:
             self._advance()
             return self._previous
@@ -35,13 +38,13 @@ class InheritanceParser:
             return
         raise self._error(message)
 
-    def _check(self, token_type: Token) -> bool:
+    def _check(self, token_type: _TokenType) -> bool:
         return self._current[0] is token_type
 
     def _check_literal(self, literal: str) -> bool:
         return self._current[1] == literal
 
-    def _match(self, token_type: Token) -> bool:
+    def _match(self, token_type: _TokenType) -> bool:
         if not self._check(token_type): return False
         self._advance()
         return True
@@ -98,7 +101,7 @@ class InheritanceParser:
         if self._match_literal(':'):
             unresolved_base_classes: list[Class] = self._class_inheritance_list()
 
-            current_class = None
+            current_class: Optional[Class] = None
             new_offset = -1
             for class_statement in unresolved_base_classes:
                 if new_offset != class_statement.offset:
@@ -110,19 +113,18 @@ class InheritanceParser:
                     current_class = class_statement
 
         # if class has vtable, then class size is at least 8 bytes
-        new_class = Class(class_name, base_classes, 0, 0)
-        return new_class
+        return Class(class_name, base_classes, 0, 0)
 
     def _class_inheritance_list(self) -> list[Class]:
         """
         CLASS_INHERITANCE_LIST : CLASS_INHERITANCE+
         """
         if self._check(Number.Hex):
-            base_classes: list[Class] = []
+            bases: list[Class] = []
             while self._check(Number.Hex):
-                base_classes.append(self._class_inheritance())
-            base_classes.sort(key=lambda x: x.offset)
-            return base_classes
+                bases.append(self._class_inheritance())
+            bases.sort(key=lambda x: x.offset)
+            return bases
         else:
             raise self._error("Expect inheritance following ':'.")
 
@@ -159,7 +161,7 @@ class VTableParser:
         except StopIteration:
             self._current = (Token.EOF, 'EOF')
 
-    def _consume(self, token_type: Token, message: str) -> TokenType:
+    def _consume(self, token_type: _TokenType, message: str) -> TokenType:
         if self._current[0] == token_type:
             self._advance()
             return self._previous
@@ -171,13 +173,13 @@ class VTableParser:
             return
         raise self._error(message)
 
-    def _check(self, token_type: Token) -> bool:
+    def _check(self, token_type: _TokenType) -> bool:
         return self._current[0] is token_type
 
     def _check_literal(self, literal: str) -> bool:
         return self._current[1] == literal
 
-    def _match(self, token_type: Token) -> bool:
+    def _match(self, token_type: _TokenType) -> bool:
         if not self._check(token_type): return False
         self._advance()
         return True
@@ -206,7 +208,7 @@ class VTableParser:
         self._match(Whitespace.EmptyLine)
         return ModuleBlock(module_begin_literal, vtable_lists)
 
-    def _begin_module(self) -> Token:
+    def _begin_module(self) -> TokenType:
         """
         begin_module : '<' module '>'
         """
@@ -215,7 +217,7 @@ class VTableParser:
         self._consume_literal('>', "Missing '>' after module name.")
         return token
 
-    def _end_module(self) -> Token:
+    def _end_module(self) -> TokenType:
         """
         end_module : '<' 'end' module '>'
         """
@@ -262,11 +264,11 @@ class VTableParser:
         """
         vtable_entry_list : vtable_entry+
         """
-        vtable_entries: list[VTableEntry] = []
+        entries: list[VTableEntry] = []
         for _ in range(count):
-            vtable_entries.append(self._vtable_entry())
+            entries.append(self._vtable_entry())
 
-        return vtable_entries
+        return entries
 
     def _vtable_entry(self) -> VTableEntry:
         """

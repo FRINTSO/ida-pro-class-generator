@@ -48,6 +48,9 @@ class Class(Statement):
     def get_size(self):
         return self._size.size
 
+    def is_determined_size(self) -> bool:
+        return self._size.is_determined
+
     def clone(self):
         bases: list[Class] = [base.clone() for base in self.bases]
         new_class = Class(self.identifier, bases, self.offset, self._size.size)
@@ -67,6 +70,11 @@ class Size:
     def __init__(self, size):
         self.size = size
         self.is_determined = False
+
+    def __str__(self):
+        return hex(self.size)
+
+    __repr__ = __str__
 
 
 class VTable(Statement):

@@ -51,6 +51,8 @@ class ClassResolver(Statement.Visitor):
             vtable = self._find_vtable_with_owner(base.identifier, cls.identifier)
 
             if retrieved_base := self._get_base(bases, base):
+                if retrieved_base.vtable and vtable:
+                    self._override_vtable_function_names(retrieved_base.vtable, vtable)
                 retrieved_base.vtable = vtable
                 continue
 
@@ -61,7 +63,6 @@ class ClassResolver(Statement.Visitor):
                 bases.append(new_class)
                 self.visit_class(new_class)
             else:
-                # fix base's bases' offset not being zero at the first base
                 base.vtable = vtable
                 bases.append(base)
                 self.visit_class(base)
@@ -82,6 +83,16 @@ class ClassResolver(Statement.Visitor):
         # Update vtable methods
         self._set_vtable_function_names(cls)
 
+    def _override_vtable_function_names(self, old_vtable: VTable, new_vtable: VTable) -> None:
+        owner_cls: Optional[Class] = None
+        if new_vtable.owner and new_vtable.owner in self._current_module_type_symbols:
+            owner_cls = self._current_module_type_symbols[new_vtable.owner]
+        for entry in old_vtable.vtable_entry_list:
+            cls_entry = new_vtable.vtable_entry_list[entry.index]
+            cls_entry.function = entry.function
+            if cls_entry.address != entry.address and owner_cls:
+                cls_entry.function.implementer = owner_cls
+
     @staticmethod
     def _calculate_sizeof_bases(bases: list[Class]) -> int:
         if len(bases):
@@ -92,17 +103,27 @@ class ClassResolver(Statement.Visitor):
         if not cls.vtable: return
         if not len(cls.bases):
             for entry in cls.vtable.vtable_entry_list:
-                entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
+                entry.function.identifier = f"{cls.identifier}__Function{entry.index}"
                 entry.function.definer = cls
                 entry.function.implementer = cls
         else:
             # find first base class with same offset that has a vtable
             valid_base: Class = cls.bases[0]
-            # sanity check
-            # if valid_base.offset != 0: return
             while not valid_base.vtable:
-                if not len(valid_base.bases): return
+                if not len(valid_base.bases):
+                    if valid_base.vtable is None:
+                        for entry in cls.vtable.vtable_entry_list:
+                            entry.function.identifier = f"{cls.identifier}__Function{entry.index}"
+                            entry.function.definer = cls
+                            entry.function.implementer = cls
+                    return
                 valid_base = valid_base.bases[0]
+
+            owner_cls = None
+            if cls.vtable.owner and cls.vtable.owner in self._current_module_type_symbols:
+                owner_cls = self._current_module_type_symbols[cls.vtable.owner]
+            elif cls.vtable.owner:
+                return
 
             for entry in valid_base.vtable.vtable_entry_list:
                 cls_entry = cls.vtable.vtable_entry_list[entry.index]
@@ -110,13 +131,18 @@ class ClassResolver(Statement.Visitor):
                 cls_entry.function.identifier = entry.function.identifier
                 if cls_entry.address == entry.address:
                     cls_entry.function.implementer = entry.function.implementer
+                elif owner_cls:
+                    cls_entry.function.implementer = owner_cls
                 else:
                     cls_entry.function.implementer = cls
 
             for entry in cls.vtable.vtable_entry_list[valid_base.vtable.vtable_count:]:
-                entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
+                entry.function.identifier = f"{cls.identifier}__Function{entry.index}"
                 entry.function.definer = cls
-                entry.function.implementer = cls
+                if owner_cls:
+                    entry.function.implementer = owner_cls
+                else:
+                    entry.function.implementer = cls
 
             for valid_base in cls.bases[1:]:
                 if not valid_base.vtable: continue
@@ -157,8 +183,8 @@ class ClassResolver(Statement.Visitor):
 
 
 def main() -> None:
-    with open("hierarchies/hitman3/inheritance.txt", "r") as read: inheritance_text = read.read()
-    with open("hierarchies/hitman3/vtable.txt", "r") as read: vtable_text = read.read()
+    with open("hierarchies/fallout4/inheritance.txt", "r") as read: inheritance_text = read.read()
+    with open("hierarchies/fallout4/vtable.txt", "r") as read: vtable_text = read.read()
 
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)

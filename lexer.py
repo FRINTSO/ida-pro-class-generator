@@ -1,7 +1,12 @@
-from typing import Iterator
+from __future__ import annotations
+from typing import Iterator, TYPE_CHECKING
 
 from pygments.lexer import RegexLexer, bygroups
 from pygments.token import Punctuation, Token, Number, Name, Whitespace, Keyword
+
+if TYPE_CHECKING:
+    from pygments.token import _TokenType
+    TokenType = tuple[_TokenType, str]
 
 
 # https://www.cs.auckland.ac.nz/references/unix/digital/AQTLTBTE/DOCU_006.HTM
@@ -32,9 +37,8 @@ class Lexer(RegexLexer):
         ]
     }
 
-    def tokenize(self, text: str) -> Iterator[tuple[Token, str]]:
-        token_stream: Iterator[tuple[Token, str]] = self.get_tokens(text)
-        token: Token
+    def tokenize(self, text: str) -> Iterator[TokenType]:
+        token_stream: Iterator[TokenType] = self.get_tokens(text)
         for token, literal in token_stream:
             if token is Whitespace:
                 continue
