@@ -24,6 +24,7 @@ class Class(Statement):
     offset: int
     _size: Size
     vtable: Optional[VTable]
+    is_faulty: bool
     @overload
     def __init__(self, identifier: str, bases: list[Class], offset: int, size: int) -> None: ...
     @overload

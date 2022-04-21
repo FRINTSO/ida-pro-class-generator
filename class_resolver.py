@@ -1,4 +1,4 @@
-import cProfile
+import sys
 from typing import Optional
 
 import module_linker
@@ -43,7 +43,11 @@ class ClassResolver(Statement.Visitor):
 
         cls: Class
         for cls in linked_module.classes:
-            self.execute(cls)
+            try:
+                self.visit_class(cls)
+            except IndexError:
+                print(f"{cls.identifier} may be faulty", file=sys.stderr)
+                cls.is_faulty = True
 
     def visit_class(self, cls: Class) -> None:
         bases: list[Class] = []
@@ -85,10 +89,13 @@ class ClassResolver(Statement.Visitor):
 
     def _override_vtable_function_names(self, old_vtable: VTable, new_vtable: VTable) -> None:
         owner_cls: Optional[Class] = None
-        if new_vtable.owner and new_vtable.owner in self._current_module_type_symbols:
+        if new_vtable.owner in self._current_module_type_symbols:
             owner_cls = self._current_module_type_symbols[new_vtable.owner]
         for entry in old_vtable.vtable_entry_list:
-            cls_entry = new_vtable.vtable_entry_list[entry.index]
+            try:
+                cls_entry = new_vtable.vtable_entry_list[entry.index]
+            except IndexError:
+                raise IndexError(owner_cls.identifier)
             cls_entry.function = entry.function
             if cls_entry.address != entry.address and owner_cls:
                 cls_entry.function.implementer = owner_cls
@@ -126,7 +133,10 @@ class ClassResolver(Statement.Visitor):
                 return
 
             for entry in valid_base.vtable.vtable_entry_list:
-                cls_entry = cls.vtable.vtable_entry_list[entry.index]
+                try:
+                    cls_entry = cls.vtable.vtable_entry_list[entry.index]
+                except IndexError:
+                    raise IndexError(cls.identifier, valid_base.identifier)
                 cls_entry.function.definer = entry.function.definer
                 cls_entry.function.identifier = entry.function.identifier
                 if cls_entry.address == entry.address:
@@ -183,8 +193,8 @@ class ClassResolver(Statement.Visitor):
 
 
 def main() -> None:
-    with open("hierarchies/fallout4/inheritance.txt", "r") as read: inheritance_text = read.read()
-    with open("hierarchies/fallout4/vtable.txt", "r") as read: vtable_text = read.read()
+    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\hitman3\inheritance.txt", "r") as read: inheritance_text = read.read()
+    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\hitman3\vtable.txt", "r") as read: vtable_text = read.read()
 
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)

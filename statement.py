@@ -39,6 +39,7 @@ class Class(Statement):
             Class._class_sizes[identifier] = Size(size)
         self._size = self._class_sizes[identifier]
         self.vtable = None
+        self.is_faulty = False
 
     def set_size(self, size, is_determined):
         if self._size.is_determined: return
