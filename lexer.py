@@ -56,7 +56,7 @@ class Lexer(RegexLexer):
 
 
 def main():
-    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\hitman3\inheritance.txt", "r") as read:
+    with open(r"hierarchies\hitman3\inheritance.txt", "r") as read:
         text = read.read()
 
     lexer = Lexer()

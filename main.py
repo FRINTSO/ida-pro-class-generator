@@ -27,7 +27,10 @@ def save_config(config: ConfigParser) -> None:
 
 
 def get_config_path(config: ConfigParser) -> str:
-    return config['Paths']['class_dumper_dir']
+    try:
+        return config['Paths']['class_dumper_dir']
+    except KeyError:
+        return "No path to class_dumper has been set."
 
 
 def set_config_path(config: ConfigParser, path: str) -> None:
