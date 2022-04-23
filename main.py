@@ -15,7 +15,7 @@ def create_config_parser() -> ConfigParser:
     if not os.path.exists('config.cfg'):
         with open('config.cfg', 'w') as configfile:
             current_path = os.path.abspath('')
-            configfile.write(f'[Paths]'
+            configfile.write(f'[Paths]\n'
                              f'class_dumper_dir={current_path}')
     config.read('config.cfg')
     return config
@@ -71,7 +71,7 @@ def load_game_class_files(config: ConfigParser, identifier: str) -> tuple[str, s
     return inheritance_text, vtable_text
 
 
-def scan_game_classes(config: ConfigParser, game: str, identifier: str = "") -> None:
+def scan_game_classes(config: ConfigParser, game: str, module: str = "", identifier: str = "") -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -88,7 +88,7 @@ def scan_game_classes(config: ConfigParser, game: str, identifier: str = "") -> 
     resolver = ClassResolver()
     resolver.resolve(linked_modules)
 
-    printer = Printer(identifier) if identifier else Printer()
+    printer = Printer(module, identifier) if identifier else Printer()
     printer.print(linked_modules)
 
 
@@ -122,9 +122,11 @@ def main(*args):
             set_config_path(config, args[1])
             save_config(config)
         case ['scan-game', _]:
-            scan_game_classes(config, args[1])
+            scan_game_classes(config, game=args[1])
+        case ['scan-module', _, _]:
+            scan_game_classes(config, game=args[1], module=args[2])
         case ['scan-class', _, _]:
-            scan_game_classes(config, args[1], args[2])
+            scan_game_classes(config, game=args[1], identifier=args[2])
         case ['list-games']:
             list_games(config)
         case ['-h'] | ['--help'] | []:
