@@ -4,7 +4,7 @@ from typing import Optional
 import module_linker
 from lexer import Lexer
 from parser import InheritanceParser, VTableParser
-from statement import Statement, Class, LinkedModuleBlock, VTable
+from statement import Statement, Class, LinkedModuleBlock, VTable, VTableEntry
 
 
 class ClassResolver(Statement.Visitor):
@@ -27,6 +27,8 @@ class ClassResolver(Statement.Visitor):
         self._current_module_type_symbols = {class_statement.identifier: class_statement for class_statement in
                                              linked_module.classes}
 
+        # 34 is length of anon-namespace string
+        # 11 is length of vftable string
         self._current_module_vtable_symbols = {vtable.identifier[:-34]
                                                if vtable.identifier.endswith("::`anonymous namespace'::`vftable'")
                                                else vtable.identifier[:-11]: vtable
@@ -84,8 +86,19 @@ class ClassResolver(Statement.Visitor):
         cls.bases = bases
         cls.set_size(sizeof_bases, False)
 
+        # self.__print_vftable_function_names(cls)
         # Update vtable methods
         self._set_vtable_function_names(cls)
+        # self.__print_vftable_function_names(cls)
+
+    @staticmethod
+    def __print_vftable_function_names(cls: Class) -> None:
+        if not cls.vtable: return
+
+        print(f"CLASS: {cls.identifier}")
+        for entry in cls.vtable.vtable_entry_list:
+            print(entry.function)
+        print()
 
     def _override_vtable_function_names(self, old_vtable: VTable, new_vtable: VTable) -> None:
         owner_cls: Optional[Class] = None
@@ -96,7 +109,12 @@ class ClassResolver(Statement.Visitor):
                 cls_entry = new_vtable.vtable_entry_list[entry.index]
             except IndexError:
                 raise IndexError(owner_cls.identifier)
-            cls_entry.function = entry.function
+            # cls_entry.function = entry.function  # bug: copies object pointer, instead of copying all fields of object
+            # Potential Fix
+            cls_entry.function.identifier = entry.function.identifier
+            cls_entry.function.definer = entry.function.definer
+            cls_entry.function.implementer = entry.function.implementer
+
             if cls_entry.address != entry.address and owner_cls:
                 cls_entry.function.implementer = owner_cls
 
@@ -106,11 +124,11 @@ class ClassResolver(Statement.Visitor):
             return bases[-1].offset + bases[-1].get_size()
         return 0
 
-    def _set_vtable_function_names(self, cls: Class) -> None:
+    def _set_vtable_function_names(self, cls: Class) -> None:  # class should (maybe) not take ownership of nullsub method, since it can be shared
         if not cls.vtable: return
-        if not len(cls.bases):
+        if not len(cls.bases):  # redoes vtable init, should check for repetition
             for entry in cls.vtable.vtable_entry_list:
-                entry.function.identifier = f"{cls.identifier}__Function{entry.index}"
+                entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
                 entry.function.definer = cls
                 entry.function.implementer = cls
         else:
@@ -120,7 +138,7 @@ class ClassResolver(Statement.Visitor):
                 if not len(valid_base.bases):
                     if valid_base.vtable is None:
                         for entry in cls.vtable.vtable_entry_list:
-                            entry.function.identifier = f"{cls.identifier}__Function{entry.index}"
+                            entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
                             entry.function.definer = cls
                             entry.function.implementer = cls
                     return
@@ -147,7 +165,7 @@ class ClassResolver(Statement.Visitor):
                     cls_entry.function.implementer = cls
 
             for entry in cls.vtable.vtable_entry_list[valid_base.vtable.vtable_count:]:
-                entry.function.identifier = f"{cls.identifier}__Function{entry.index}"
+                entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
                 entry.function.definer = cls
                 if owner_cls:
                     entry.function.implementer = owner_cls
@@ -159,7 +177,7 @@ class ClassResolver(Statement.Visitor):
                 if valid_base.identifier not in self._current_module_vtable_symbols: continue
                 established_vtable = self._current_module_vtable_symbols[valid_base.identifier]
 
-                for entry in established_vtable.vtable_entry_list:
+                for entry in established_vtable.vtable_entry_list:  # if cls_entry == entry, then continue
                     cls_entry = valid_base.vtable.vtable_entry_list[entry.index]
                     if cls_entry.address == entry.address:
                         cls_entry.function.implementer = entry.function.implementer
@@ -193,8 +211,8 @@ class ClassResolver(Statement.Visitor):
 
 
 def main() -> None:
-    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\hitman3\inheritance.txt", "r") as read: inheritance_text = read.read()
-    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\hitman3\vtable.txt", "r") as read: vtable_text = read.read()
+    with open(r"C:\Users\willi\Desktop\Class_Dumper\hitman3\inheritance.txt", "r") as read: inheritance_text = read.read()
+    with open(r"C:\Users\willi\Desktop\Class_Dumper\hitman3\vtable.txt", "r") as read: vtable_text = read.read()
 
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)

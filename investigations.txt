@@ -1,0 +1,1 @@
+In game shadow of the tomb raider. Class NetObject is way to large, it should have a size of 0x310, yet has a size of 0x588

@@ -147,7 +147,7 @@ class Function:
         self.implementer = implementer
 
     def __str__(self):
-        if self.implementer != self.definer:
+        if self.implementer and self.implementer != self.definer:
             return f"{self.implementer.identifier} -> {self.identifier}"
         return self.identifier
 

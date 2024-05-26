@@ -299,13 +299,13 @@ class VTableParser:
 def main():
     # lexer = InheritanceLexer(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\ROTTR\inheritance.txt")
     # lexer = InheritanceLexer(r"inheritance.txt")
-    with open("hierarchies/hitman3/inheritance.txt", "r") as read: text = read.read()
+    with open(r"C:\Users\willi\Desktop\Class_Dumper\GTA5\vtable.txt", "r") as read: text = read.read()
 
     lexer = Lexer()
     lexer.tokenize(text)
     tokens = lexer.tokenize(text)
-    # parser = VTableParser(tokens)
-    parser = InheritanceParser(tokens)
+    parser = VTableParser(tokens)
+    # parser = InheritanceParser(tokens)
     statements = parser.parse()
     for statement in statements:
         print(statement)

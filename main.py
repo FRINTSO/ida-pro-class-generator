@@ -5,7 +5,8 @@ import sys
 from class_resolver import ClassResolver
 from lexer import Lexer
 from module_linker import link_modules
-from module_printer import Printer
+from module_printer import Printer as ModulePrinter
+from method_printer import Printer as MethodPrinter
 from parser import InheritanceParser, VTableParser
 
 
@@ -74,7 +75,7 @@ def load_game_class_files(config: ConfigParser, identifier: str) -> tuple[str, s
     return inheritance_text, vtable_text
 
 
-def scan_game_classes(config: ConfigParser, game: str, module: str = "", identifier: str = "") -> None:
+def scan_game_classes(config: ConfigParser, *, game: str, module: str = "", identifier: str = "") -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -91,7 +92,28 @@ def scan_game_classes(config: ConfigParser, game: str, module: str = "", identif
     resolver = ClassResolver()
     resolver.resolve(linked_modules)
 
-    printer = Printer(module, identifier) if identifier else Printer()
+    printer = ModulePrinter(module, identifier) if identifier else ModulePrinter()
+    printer.print(linked_modules)
+
+
+def scan_game_methods(config: ConfigParser, *, game: str, module: str, identifier: str = "") -> None:
+    inheritance_text, vtable_text = load_game_class_files(config, game)
+    lexer = Lexer()
+    inheritance_tokens = lexer.tokenize(inheritance_text)
+    vtable_tokens = lexer.tokenize(vtable_text)
+
+    inheritance_parser = InheritanceParser(inheritance_tokens)
+    vtable_parser = VTableParser(vtable_tokens)
+
+    class_modules = inheritance_parser.parse()
+    vtable_modules = vtable_parser.parse()
+
+    linked_modules = link_modules(class_modules, vtable_modules)
+
+    resolver = ClassResolver()
+    resolver.resolve(linked_modules)
+
+    printer = MethodPrinter(module, identifier) if identifier else MethodPrinter(module)
     printer.print(linked_modules)
 
 
@@ -110,7 +132,10 @@ def main(*args):
       get-path
       set-path [path]
       scan-game [game-name]
+      scan-module [game-name] [module-name]
       scan-class [game-name] [class-name]
+      scan-methods [game-name] [module-name]
+      scan-class-methods [game-name] [module-mame] [class-name]
       list-games
 
     General Options:
@@ -130,14 +155,18 @@ def main(*args):
             scan_game_classes(config, game=args[1], module=args[2])
         case ['scan-class', _, _]:
             scan_game_classes(config, game=args[1], identifier=args[2])
+        case ['scan-methods', _, _]:
+            scan_game_methods(config, game=args[1], module=args[2])
+        case ['scan-class-methods', _, _, _]:
+            scan_game_methods(config, game=args[1], module=args[2], identifier=args[3])
         case ['list-games']:
             list_games(config)
         case ['-h'] | ['--help'] | []:
             print(main.__doc__.replace('    ', ''), end="")
         case _:
-            print("Unrecognized command")
+            print("Unrecognized command", file=sys.stderr)
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:])
-    # main("scan-game", "Fallout4")
+    # main(*sys.argv[1:])
+    main("scan-game", "Fallout4")

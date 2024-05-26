@@ -77,7 +77,7 @@ class Printer(Statement.Visitor):
             for virtual_method in cls.vtable.vtable_entry_list:
                 virtual_function = virtual_method.function
 
-                if virtual_function.implementer and (virtual_function.implementer.identifier == cls.identifier or virtual_function.definer.identifier == cls.identifier):
+                if virtual_function.implementer and virtual_function.definer and (virtual_function.implementer.identifier == cls.identifier or virtual_function.definer.identifier == cls.identifier):
                     formatted += f"\tvirtual void {self._fix_identifier(virtual_method.function.identifier)}(){{}}\n"
 
         if cls.get_size() == 0 and not cls.bases:
@@ -86,13 +86,13 @@ class Printer(Statement.Visitor):
 
         elif cls.is_determined_size() and (size := cls.get_size()) > 8:
             # highest base with a determined size
-            # selected_base: Class = cls
-            # while len(selected_base.bases) > 0:
-            #     selected_base = selected_base.bases[-1]
-            #     if selected_base.is_determined_size():
-            #         break
+            selected_base: Class = cls
+            while len(selected_base.bases) > 0:
+                selected_base = selected_base.bases[-1]
+                if selected_base.is_determined_size():
+                    break
 
-            selected_base: Class = cls.bases[-1] if len(cls.bases) > 0 else cls
+            # selected_base: Class = cls.bases[-1] if len(cls.bases) > 0 else cls
 
             # if not selected_base.is_determined_size() and selected_base.offset == 0:
             #     selected_base = cls
@@ -118,8 +118,8 @@ class Printer(Statement.Visitor):
 
 def main():
     # lexer = InheritanceLexer(r"inheritance.txt")
-    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\Fallout4\inheritance.txt", "r") as read: inheritance_text = read.read()
-    with open(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\Fallout4\vtable.txt", "r") as read: vtable_text = read.read()
+    with open(r"C:\Users\willi\Class_Dumper\RAGE2\inheritance.txt", "r") as read: inheritance_text = read.read()
+    with open(r"C:\Users\willi\Class_Dumper\RAGE2\vtable.txt", "r") as read: vtable_text = read.read()
 
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -136,7 +136,7 @@ def main():
     resolver = ClassResolver()
     resolver.resolve(linked_modules)
 
-    printer = Printer(identifier="PlayerCharacter")
+    printer = Printer(module="RAGE2.exe")
     printer.print(linked_modules)
 
 
