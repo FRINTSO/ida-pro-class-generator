@@ -33,7 +33,7 @@ PyMODINIT_FUNC PyInit_clex(void) {
 		goto err;
 
 #define ADDTOKEN(NAME) \
-	s = PyLong_FromLong(##NAME); \
+	s = PyLong_FromLong(NAME); \
 	PyDict_SetItemString(d, #NAME, s); \
 	Py_DECREF(s)
 

@@ -15,3 +15,6 @@ ipcg = "main:main"
 [tool.setuptools]
 packages = ["ipcg"]
 py-modules = ["main"]
+ext-modules = [
+	{name = "clex", sources = ["clex/clexmodule.c", "clex/lexerobject.c", "clex/tokenobject.c"]}
+]

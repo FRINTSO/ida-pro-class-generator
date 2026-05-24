@@ -38,13 +38,13 @@ typedef enum {
 typedef struct {
 	PyObject_HEAD
 	PyObject* literal;
-	enum TokenType type;
+	TokenType type;
 	int line;
 } PyTokenObject;
 
 PyAPI_DATA(PyTypeObject) PyToken_Type;
 
-PyAPI_FUNC(int) PyToken_Init(PyTokenObject* self, enum TokenType type, const char* literal, size_t size, int line);
+PyAPI_FUNC(int) PyToken_Init(PyTokenObject* self, TokenType type, const char* literal, size_t size, int line);
 
 #ifdef __cplusplus
 }
