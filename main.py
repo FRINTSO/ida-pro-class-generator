@@ -1,50 +1,51 @@
+import argparse
 import os.path
 from configparser import ConfigParser
-import sys
+from dataclasses import dataclass
+from pathlib import Path
 
-from class_resolver import ClassResolver
-from lexer import Lexer
-from module_linker import link_modules
-from module_printer import Printer as ModulePrinter
-from method_printer import Printer as MethodPrinter
-from parser import InheritanceParser, VTableParser
+from ipcg.class_resolver import ClassResolver
+from ipcg.lexer import Lexer
+from ipcg.method_printer import Printer as MethodPrinter
+from ipcg.module_linker import link_modules
+from ipcg.module_printer import Printer as ModulePrinter
+from ipcg.parser import InheritanceParser, VTableParser
 
 
 def create_config_parser() -> ConfigParser:
     config = ConfigParser()
 
-    if not os.path.exists('config.cfg'):
-        with open('config.cfg', 'w') as configfile:
-            current_path = os.path.abspath('')
-            configfile.write(f'[Paths]\n'
-                             f'class_dumper_dir={current_path}')
-    config.read('config.cfg')
+    if not os.path.exists("config.cfg"):
+        with open("config.cfg", "w") as configfile:
+            current_path = os.path.abspath("")
+            _ = configfile.write(f"[Paths]\nclass_dumper_dir={current_path}")
+    _ = config.read("config.cfg")
     return config
 
 
 def save_config(config: ConfigParser) -> None:
-    with open('config.cfg', 'w') as configfile:
+    with open("config.cfg", "w") as configfile:
         config.write(configfile)
 
 
 def get_config_path(config: ConfigParser) -> str:
     try:
-        return config['Paths']['class_dumper_dir']
+        return config["Paths"]["class_dumper_dir"]
     except KeyError:
         return "No path to class_dumper has been set."
 
 
 def set_config_path(config: ConfigParser, path: str) -> None:
-    config['Paths']['class_dumper_dir'] = path
+    config["Paths"]["class_dumper_dir"] = path
 
 
-def check_file_presence(inheritance, vtable) -> None:
+def check_file_presence(inheritance: Path, vtable: Path) -> None:
     should_raise = False
     exception = ""
-    if not os.path.isfile(inheritance):
+    if not inheritance.is_file():
         should_raise = True
         exception += "inheritance.txt"
-    if not os.path.isfile(vtable):
+    if not vtable.is_file():
         should_raise = True
         if len(exception) != 0:
             exception += " and vtable.txt"
@@ -58,24 +59,31 @@ def check_file_presence(inheritance, vtable) -> None:
 
 def load_game_class_files(config: ConfigParser, identifier: str) -> tuple[str, str]:
     try:
-        directory = config['Paths']['class_dumper_dir']
+        directory = Path(config["Paths"]["class_dumper_dir"])
     except KeyError:
-        raise KeyError("Config file did not contain a path. Delete the config file and rerun the program.")
+        raise KeyError(
+            "Config file did not contain a path. Delete the config file and rerun the program."
+        )
 
-    game_dir = os.path.join(directory, identifier)
-    if not os.path.isdir(game_dir): raise Exception("Game folder did not exist.")
-    inheritance = os.path.join(game_dir, "inheritance.txt")
-    vtable = os.path.join(game_dir, "vtable.txt")
+    game_dir = directory / identifier
+    if not game_dir.is_dir():
+        raise Exception("Game folder did not exist.")
+    inheritance = game_dir / "inheritance.txt"
+    vtable = game_dir / "vtable.txt"
 
     check_file_presence(inheritance, vtable)
 
-    with open(inheritance, 'r') as read_inheritance: inheritance_text = read_inheritance.read()
-    with open(vtable, 'r') as read_vtable: vtable_text = read_vtable.read()
+    with inheritance.open("r") as f:
+        inheritance_text = f.read()
+    with vtable.open("r") as f:
+        vtable_text = f.read()
 
     return inheritance_text, vtable_text
 
 
-def scan_game_classes(config: ConfigParser, *, game: str, module: str = "", identifier: str = "") -> None:
+def scan_game_classes(
+    config: ConfigParser, *, game: str, module: str = "", identifier: str = ""
+) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -96,7 +104,9 @@ def scan_game_classes(config: ConfigParser, *, game: str, module: str = "", iden
     printer.print(linked_modules)
 
 
-def scan_game_methods(config: ConfigParser, *, game: str, module: str, identifier: str = "") -> None:
+def scan_game_methods(
+    config: ConfigParser, *, game: str, module: str, identifier: str = ""
+) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -119,54 +129,149 @@ def scan_game_methods(config: ConfigParser, *, game: str, module: str, identifie
 
 def list_games(config: ConfigParser):
     class_dumper_dir = get_config_path(config)
-    for game_dir in next(os.walk(class_dumper_dir, ))[1]:
+    for game_dir in next(
+        os.walk(
+            class_dumper_dir,
+        )
+    )[1]:
         print(game_dir)
 
 
-def main(*args):
-    """
-    Usage:
-      py main.py <command> [options]
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="ipcg", description="IDA Pro Class Generator")
+    sub = parser.add_subparsers(dest="command", required=True)
 
-    Commands:
-      get-path
-      set-path [path]
-      scan-game [game-name]
-      scan-module [game-name] [module-name]
-      scan-class [game-name] [class-name]
-      scan-methods [game-name] [module-name]
-      scan-class-methods [game-name] [module-mame] [class-name]
-      list-games
+    _ = sub.add_parser("get-path", help="Show the current class-dumper directory")
 
-    General Options:
-      -h, --help
-    """
+    sp = sub.add_parser("set-path", help="Set the class-dumper directory")
+    _ = sp.add_argument("path")
+
+    sp = sub.add_parser("scan-game", help="List all modules and classes for a game")
+    _ = sp.add_argument("game")
+
+    sp = sub.add_parser("scan-module", help="List classes within a specific module")
+    _ = sp.add_argument("game")
+    _ = sp.add_argument("module")
+
+    sp = sub.add_parser("scan-class", help="List a specific class across all modules")
+    _ = sp.add_argument("game")
+    _ = sp.add_argument("class_name", metavar="class")
+
+    sp = sub.add_parser("scan-methods", help="List methods for all classes in a module")
+    _ = sp.add_argument("game")
+    _ = sp.add_argument("module")
+
+    sp = sub.add_parser("scan-class-methods", help="List methods for a specific class")
+    _ = sp.add_argument("game")
+    _ = sp.add_argument("module")
+    _ = sp.add_argument("class_name", metavar="class")
+
+    _ = sub.add_parser("list-games", help="List all available games")
+
+    return parser
+
+
+@dataclass(frozen=True, slots=True)
+class GetPathArgs:
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class SetPathArgs:
+    path: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScanGameArgs:
+    game: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScanModuleArgs:
+    game: str
+    module: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScanClassArgs:
+    game: str
+    class_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScanMethodsArgs:
+    game: str
+    module: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScanClassMethodsArgs:
+    game: str
+    module: str
+    class_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ListGamesArgs:
+    pass
+
+
+type Args = (
+    GetPathArgs
+    | SetPathArgs
+    | ScanGameArgs
+    | ScanModuleArgs
+    | ScanClassArgs
+    | ScanMethodsArgs
+    | ScanClassMethodsArgs
+    | ListGamesArgs
+)
+
+
+def parse_args() -> Args:
+    parser = build_parser()
+    ns = parser.parse_args()
+
+    match ns.command:  # pyright: ignore[reportAny]
+        case "get-path":
+            return GetPathArgs()
+        case "set-path":
+            return SetPathArgs(ns.path)  # pyright: ignore[reportAny]
+        case "scan-game":
+            return ScanGameArgs(ns.game)  # pyright: ignore[reportAny]
+        case "scan-module":
+            return ScanModuleArgs(ns.game, ns.module)  # pyright: ignore[reportAny]
+        case "scan-class":
+            return ScanClassArgs(ns.game, ns.class_name)  # pyright: ignore[reportAny]
+        case "scan-methods":
+            return ScanMethodsArgs(ns.game, ns.module)  # pyright: ignore[reportAny]
+        case "scan-class-methods":
+            return ScanClassMethodsArgs(ns.game, ns.module, ns.class_name)  # pyright: ignore[reportAny]
+        case "list-games":
+            return ListGamesArgs()
+        case _:  # pyright: ignore[reportAny]
+            raise SystemExit(f"Unknown command: {ns.command}")  # pyright: ignore[reportAny]
+
+
+def main():
+    args = parse_args()
     config = create_config_parser()
 
     match args:
-        case ['get-path']:
+        case GetPathArgs():
             print(get_config_path(config))
-        case ['set-path', _]:
-            set_config_path(config, args[1])
+        case SetPathArgs(path):
+            set_config_path(config, path)
             save_config(config)
-        case ['scan-game', _]:
-            scan_game_classes(config, game=args[1])
-        case ['scan-module', _, _]:
-            scan_game_classes(config, game=args[1], module=args[2])
-        case ['scan-class', _, _]:
-            scan_game_classes(config, game=args[1], identifier=args[2])
-        case ['scan-methods', _, _]:
-            scan_game_methods(config, game=args[1], module=args[2])
-        case ['scan-class-methods', _, _, _]:
-            scan_game_methods(config, game=args[1], module=args[2], identifier=args[3])
-        case ['list-games']:
+        case ScanGameArgs(game):
+            scan_game_classes(config, game=game)
+        case ScanModuleArgs(game, module):
+            scan_game_classes(config, game=game, module=module)
+        case ScanClassArgs(game, class_name):
+            scan_game_classes(config, game=game, identifier=class_name)
+        case ScanMethodsArgs(game, module):
+            scan_game_methods(config, game=game, module=module)
+        case ScanClassMethodsArgs(game, module, class_name):
+            scan_game_methods(config, game=game, module=module, identifier=class_name)
+        case ListGamesArgs():
             list_games(config)
-        case ['-h'] | ['--help'] | []:
-            print(main.__doc__.replace('    ', ''), end="")
-        case _:
-            print("Unrecognized command", file=sys.stderr)
-
-
-if __name__ == '__main__':
-    # main(*sys.argv[1:])
-    main("scan-game", "Fallout4")

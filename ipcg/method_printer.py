@@ -1,15 +1,14 @@
 import sys
-from typing import Optional
 
-from class_resolver import ClassResolver
-from lexer import Lexer
-from module_linker import link_modules
-from parser import InheritanceParser, VTableParser
-from statement import Statement, Class, LinkedModuleBlock, VTable, VTableEntry
+from .class_resolver import ClassResolver
+from .lexer import Lexer
+from .module_linker import link_modules
+from .parser import InheritanceParser, VTableParser
+from .statement import Class, LinkedModuleBlock, Statement, VTable, VTableEntry
 
 
 class Printer(Statement.Visitor):
-    def __init__(self, module: Optional[str] = None, identifier: Optional[str] = None):
+    def __init__(self, module: str | None = None, identifier: str | None = None):
         self.module = module
         self.identifier = identifier
         self.functions: dict[str, list[VTableEntry]] = {}
@@ -17,13 +16,18 @@ class Printer(Statement.Visitor):
     def print(self, statements: list[LinkedModuleBlock]) -> None:
         for statement in statements:
             if self.module:
-                if statement.module != self.module: continue
+                if statement.module != self.module:
+                    continue
             self.execute(statement)
 
         for fn_name, entry_list in self.functions.items():
-            func_def: Optional[VTableEntry] = None
+            func_def: VTableEntry | None = None
             try:
-                func_def = [entry for entry in entry_list if entry.function.implementer == entry.function.definer][0]
+                func_def = [
+                    entry
+                    for entry in entry_list
+                    if entry.function.implementer == entry.function.definer
+                ][0]
                 print(f"{fn_name} -> 0x{func_def.relative_address:X}:")
             except IndexError:
                 print(f"{fn_name} has no default implementation", file=sys.stderr)
@@ -31,8 +35,11 @@ class Printer(Statement.Visitor):
                 continue
 
             for entry in entry_list:
-                if func_def and entry == func_def: break
-                print(f"\t{entry.function.implementer.identifier}\t0x{entry.relative_address:X}")
+                if func_def and entry == func_def:
+                    break
+                print(
+                    f"\t{entry.function.implementer.identifier}\t0x{entry.relative_address:X}"
+                )
             print()
 
     def execute(self, statement: Statement) -> None:
@@ -55,11 +62,14 @@ class Printer(Statement.Visitor):
 
     def visit_vtable_entry(self, entry: VTableEntry) -> None:
         if self.identifier:
-            if entry.function.definer.identifier != self.identifier: return
+            if entry.function.definer.identifier != self.identifier:
+                return
 
         if entry.function.identifier not in self.functions:
             self.functions[entry.function.identifier] = [entry]
-        elif not self._entry_in_list(self.functions[entry.function.identifier], entry):  # contemplating this, whether to skip, or show all classes implementing  it
+        elif not self._entry_in_list(
+            self.functions[entry.function.identifier], entry
+        ):  # contemplating this, whether to skip, or show all classes implementing  it
             self.functions[entry.function.identifier].append(entry)
 
     @staticmethod
@@ -72,8 +82,12 @@ class Printer(Statement.Visitor):
 
 
 def main():
-    with open(r"C:\Users\willi\Desktop\Class_Dumper\hitman3\inheritance.txt", "r") as read: inheritance_text = read.read()
-    with open(r"C:\Users\willi\Desktop\Class_Dumper\hitman3\vtable.txt", "r") as read: vtable_text = read.read()
+    with open(
+        r"C:\Users\willi\Desktop\Class_Dumper\hitman3\inheritance.txt", "r"
+    ) as read:
+        inheritance_text = read.read()
+    with open(r"C:\Users\willi\Desktop\Class_Dumper\hitman3\vtable.txt", "r") as read:
+        vtable_text = read.read()
 
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -94,5 +108,5 @@ def main():
     printer.print(linked_modules)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

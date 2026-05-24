@@ -1,11 +1,11 @@
 import re
 from typing import Optional
 
-from module_linker import link_modules
-from class_resolver import ClassResolver
-from statement import Statement, Class, LinkedModuleBlock
-from lexer import Lexer
-from parser import InheritanceParser, VTableParser
+from .class_resolver import ClassResolver
+from .lexer import Lexer
+from .module_linker import link_modules
+from .parser import InheritanceParser, VTableParser
+from .statement import Class, LinkedModuleBlock, Statement
 
 
 class Printer(Statement.Visitor):
@@ -18,7 +18,8 @@ class Printer(Statement.Visitor):
     def print(self, statements: list[LinkedModuleBlock]) -> None:
         for statement in statements:
             if self.module:
-                if statement.module != self.module: continue
+                if statement.module != self.module:
+                    continue
             self.execute(statement)
 
         # print('int main() {')
@@ -36,14 +37,16 @@ class Printer(Statement.Visitor):
     def execute_block(self, statements: list[Class]):
         for statement in statements:
             if self.identifier:
-                if statement.identifier != self.identifier: continue
+                if statement.identifier != self.identifier:
+                    continue
             self.execute(statement)
 
     def visit_linked_module_block(self, statement: LinkedModuleBlock) -> None:
         self.execute_block(statement.classes)
 
     def visit_class(self, cls: Class) -> None:
-        if cls.identifier in self._established_classes: return
+        if cls.identifier in self._established_classes:
+            return
 
         for base in cls.bases:
             self.visit_class(base)
@@ -53,7 +56,8 @@ class Printer(Statement.Visitor):
         self._established_classes.add(cls.identifier)
 
     def _fix_identifier(self, identifier: str) -> str:
-        if identifier in self.fixed_names: return self.fixed_names[identifier]
+        if identifier in self.fixed_names:
+            return self.fixed_names[identifier]
         new_identifier = re.sub(r"(class|union|struct|enum) ", "", identifier)
         new_identifier = re.sub(r"`anonymous namespace'", "_", new_identifier)
         new_identifier = re.sub(r"<|> ?", "__", new_identifier)
@@ -77,7 +81,14 @@ class Printer(Statement.Visitor):
             for virtual_method in cls.vtable.vtable_entry_list:
                 virtual_function = virtual_method.function
 
-                if virtual_function.implementer and virtual_function.definer and (virtual_function.implementer.identifier == cls.identifier or virtual_function.definer.identifier == cls.identifier):
+                if (
+                    virtual_function.implementer
+                    and virtual_function.definer
+                    and (
+                        virtual_function.implementer.identifier == cls.identifier
+                        or virtual_function.definer.identifier == cls.identifier
+                    )
+                ):
                     formatted += f"\tvirtual void {self._fix_identifier(virtual_method.function.identifier)}(){{}}\n"
 
         if cls.get_size() == 0 and not cls.bases:
@@ -98,9 +109,15 @@ class Printer(Statement.Visitor):
             #     selected_base = cls
 
             if selected_base != cls:
-                selected_base_size = selected_base.get_size() if selected_base.get_size() != 0 else 8
+                selected_base_size = (
+                    selected_base.get_size() if selected_base.get_size() != 0 else 8
+                )
                 size -= selected_base.offset + selected_base_size
-                if not selected_base.vtable and selected_base.offset == 0 and cls.vtable:
+                if (
+                    not selected_base.vtable
+                    and selected_base.offset == 0
+                    and cls.vtable
+                ):
                     size -= 8
                 padded_offset = f"{cls.get_size() - size:X}"
             else:
@@ -109,7 +126,9 @@ class Printer(Statement.Visitor):
                 padded_offset = f"{cls.offset:X}"
 
             for offset in range(0, size, 8):
-                formatted += f"\t__int64 field_{f'{int(padded_offset, base=16)+offset:X}'};\n"
+                formatted += (
+                    f"\t__int64 field_{f'{int(padded_offset, base=16) + offset:X}'};\n"
+                )
 
         formatted += "};\n"
 
@@ -118,8 +137,10 @@ class Printer(Statement.Visitor):
 
 def main():
     # lexer = InheritanceLexer(r"inheritance.txt")
-    with open(r"C:\Users\willi\Class_Dumper\RAGE2\inheritance.txt", "r") as read: inheritance_text = read.read()
-    with open(r"C:\Users\willi\Class_Dumper\RAGE2\vtable.txt", "r") as read: vtable_text = read.read()
+    with open(r"C:\Users\willi\Class_Dumper\RAGE2\inheritance.txt", "r") as read:
+        inheritance_text = read.read()
+    with open(r"C:\Users\willi\Class_Dumper\RAGE2\vtable.txt", "r") as read:
+        vtable_text = read.read()
 
     lexer = Lexer()
     inheritance_tokens = lexer.tokenize(inheritance_text)
@@ -140,5 +161,5 @@ def main():
     printer.print(linked_modules)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

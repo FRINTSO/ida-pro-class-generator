@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# name = "ida-pro-class-generator"
+name = "ipcg"
+version = "0.1.0"
+requires-python = ">=3.12,<3.15"
+dependencies = ["pygments"]
+
+[project.scripts]
+ipcg = "main:main"
+
+[tool.setuptools]
+packages = ["ipcg"]
+py-modules = ["main"]
