@@ -1,8 +1,6 @@
-import signal
-
-_ = signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 import argparse
 import os.path
+import signal
 from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +11,8 @@ from ipcg.method_printer import Printer as MethodPrinter
 from ipcg.module_linker import link_modules
 from ipcg.module_printer import Printer as ModulePrinter
 from ipcg.parser import InheritanceParser, VTableParser
+
+_ = signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
 def create_config_parser() -> ConfigParser:
@@ -94,8 +94,13 @@ def scan_game_classes(
 ) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
     lexer = get_lexer_provider(lexer_backend)
-    inheritance_tokens = lexer.tokenize(inheritance_text, mode=0)
-    vtable_tokens = lexer.tokenize(vtable_text, mode=1)
+    inheritance_tokens = lexer.tokenize(inheritance_text)
+
+    # for nr, token in enumerate(inheritance_tokens):
+    #     print(nr, token)
+    # raise SystemExit(1)
+
+    vtable_tokens = lexer.tokenize(vtable_text)
 
     inheritance_parser = InheritanceParser(inheritance_tokens)
     vtable_parser = VTableParser(vtable_tokens)
@@ -122,8 +127,8 @@ def scan_game_methods(
 ) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
     lexer = get_lexer_provider(lexer_backend)
-    inheritance_tokens = lexer.tokenize(inheritance_text, mode=0)
-    vtable_tokens = lexer.tokenize(vtable_text, mode=1)
+    inheritance_tokens = lexer.tokenize(inheritance_text)
+    vtable_tokens = lexer.tokenize(vtable_text)
 
     inheritance_parser = InheritanceParser(inheritance_tokens)
     vtable_parser = VTableParser(vtable_tokens)
