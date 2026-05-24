@@ -27,7 +27,7 @@ class Statement:
 
 @final
 @dataclass
-class ModuleBlock[T: Statement = Statement](Statement):
+class ModuleBlock[T: Statement](Statement):
     module: str
     statements: list[T]
 

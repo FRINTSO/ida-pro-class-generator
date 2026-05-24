@@ -1,3 +1,6 @@
+import signal
+
+_ = signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 import argparse
 import os.path
 from configparser import ConfigParser
@@ -5,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ipcg.class_resolver import ClassResolver
-from ipcg.lexer import get_lexer_provider
+from ipcg.lexer import LexerBackend, get_lexer_provider
 from ipcg.method_printer import Printer as MethodPrinter
 from ipcg.module_linker import link_modules
 from ipcg.module_printer import Printer as ModulePrinter
@@ -82,12 +85,17 @@ def load_game_class_files(config: ConfigParser, identifier: str) -> tuple[str, s
 
 
 def scan_game_classes(
-    config: ConfigParser, *, game: str, module: str = "", identifier: str = ""
+    config: ConfigParser,
+    *,
+    game: str,
+    module: str = "",
+    identifier: str = "",
+    lexer_backend: LexerBackend,
 ) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
-    lexer = get_lexer_provider()
-    inheritance_tokens = lexer.tokenize(inheritance_text)
-    vtable_tokens = lexer.tokenize(vtable_text)
+    lexer = get_lexer_provider(lexer_backend)
+    inheritance_tokens = lexer.tokenize(inheritance_text, mode=0)
+    vtable_tokens = lexer.tokenize(vtable_text, mode=1)
 
     inheritance_parser = InheritanceParser(inheritance_tokens)
     vtable_parser = VTableParser(vtable_tokens)
@@ -105,12 +113,17 @@ def scan_game_classes(
 
 
 def scan_game_methods(
-    config: ConfigParser, *, game: str, module: str, identifier: str = ""
+    config: ConfigParser,
+    *,
+    game: str,
+    module: str,
+    identifier: str = "",
+    lexer_backend: LexerBackend,
 ) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
-    lexer = get_lexer_provider()
-    inheritance_tokens = lexer.tokenize(inheritance_text)
-    vtable_tokens = lexer.tokenize(vtable_text)
+    lexer = get_lexer_provider(lexer_backend)
+    inheritance_tokens = lexer.tokenize(inheritance_text, mode=0)
+    vtable_tokens = lexer.tokenize(vtable_text, mode=1)
 
     inheritance_parser = InheritanceParser(inheritance_tokens)
     vtable_parser = VTableParser(vtable_tokens)
@@ -138,35 +151,71 @@ def list_games(config: ConfigParser):
 
 
 def build_parser() -> argparse.ArgumentParser:
+    lexer_parent = argparse.ArgumentParser(add_help=False)
+    _ = lexer_parent.add_argument(
+        "--lexer",
+        choices=("pygments", "clex"),
+        default="pygments",
+        help="Lexer backend to use (default: pygments)",
+    )
+
     parser = argparse.ArgumentParser(prog="ipcg", description="IDA Pro Class Generator")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    _ = sub.add_parser("get-path", help="Show the current class-dumper directory")
+    _ = sub.add_parser(
+        "get-path",
+        parents=[lexer_parent],
+        help="Show the current class-dumper directory",
+    )
 
-    sp = sub.add_parser("set-path", help="Set the class-dumper directory")
+    sp = sub.add_parser(
+        "set-path", parents=[lexer_parent], help="Set the class-dumper directory"
+    )
     _ = sp.add_argument("path")
 
-    sp = sub.add_parser("scan-game", help="List all modules and classes for a game")
+    sp = sub.add_parser(
+        "scan-game",
+        parents=[lexer_parent],
+        help="List all modules and classes for a game",
+    )
     _ = sp.add_argument("game")
 
-    sp = sub.add_parser("scan-module", help="List classes within a specific module")
+    sp = sub.add_parser(
+        "scan-module",
+        parents=[lexer_parent],
+        help="List classes within a specific module",
+    )
     _ = sp.add_argument("game")
     _ = sp.add_argument("module")
 
-    sp = sub.add_parser("scan-class", help="List a specific class across all modules")
+    sp = sub.add_parser(
+        "scan-class",
+        parents=[lexer_parent],
+        help="List a specific class across all modules",
+    )
     _ = sp.add_argument("game")
     _ = sp.add_argument("class_name", metavar="class")
 
-    sp = sub.add_parser("scan-methods", help="List methods for all classes in a module")
+    sp = sub.add_parser(
+        "scan-methods",
+        parents=[lexer_parent],
+        help="List methods for all classes in a module",
+    )
     _ = sp.add_argument("game")
     _ = sp.add_argument("module")
 
-    sp = sub.add_parser("scan-class-methods", help="List methods for a specific class")
+    sp = sub.add_parser(
+        "scan-class-methods",
+        parents=[lexer_parent],
+        help="List methods for a specific class",
+    )
     _ = sp.add_argument("game")
     _ = sp.add_argument("module")
     _ = sp.add_argument("class_name", metavar="class")
 
-    _ = sub.add_parser("list-games", help="List all available games")
+    _ = sub.add_parser(
+        "list-games", parents=[lexer_parent], help="List all available games"
+    )
 
     return parser
 
@@ -228,33 +277,34 @@ type Args = (
 )
 
 
-def parse_args() -> Args:
+def parse_args() -> tuple[Args, LexerBackend]:
     parser = build_parser()
     ns = parser.parse_args()
+    lexer: LexerBackend = ns.lexer  # pyright: ignore[reportAny]
 
     match ns.command:  # pyright: ignore[reportAny]
         case "get-path":
-            return GetPathArgs()
+            return GetPathArgs(), lexer
         case "set-path":
-            return SetPathArgs(ns.path)  # pyright: ignore[reportAny]
+            return SetPathArgs(ns.path), lexer  # pyright: ignore[reportAny]
         case "scan-game":
-            return ScanGameArgs(ns.game)  # pyright: ignore[reportAny]
+            return ScanGameArgs(ns.game), lexer  # pyright: ignore[reportAny]
         case "scan-module":
-            return ScanModuleArgs(ns.game, ns.module)  # pyright: ignore[reportAny]
+            return ScanModuleArgs(ns.game, ns.module), lexer  # pyright: ignore[reportAny]
         case "scan-class":
-            return ScanClassArgs(ns.game, ns.class_name)  # pyright: ignore[reportAny]
+            return ScanClassArgs(ns.game, ns.class_name), lexer  # pyright: ignore[reportAny]
         case "scan-methods":
-            return ScanMethodsArgs(ns.game, ns.module)  # pyright: ignore[reportAny]
+            return ScanMethodsArgs(ns.game, ns.module), lexer  # pyright: ignore[reportAny]
         case "scan-class-methods":
-            return ScanClassMethodsArgs(ns.game, ns.module, ns.class_name)  # pyright: ignore[reportAny]
+            return ScanClassMethodsArgs(ns.game, ns.module, ns.class_name), lexer  # pyright: ignore[reportAny]
         case "list-games":
-            return ListGamesArgs()
+            return ListGamesArgs(), lexer
         case _:  # pyright: ignore[reportAny]
             raise SystemExit(f"Unknown command: {ns.command}")  # pyright: ignore[reportAny]
 
 
 def main():
-    args = parse_args()
+    args, lexer_backend = parse_args()
     config = create_config_parser()
 
     match args:
@@ -264,14 +314,26 @@ def main():
             set_config_path(config, path)
             save_config(config)
         case ScanGameArgs(game):
-            scan_game_classes(config, game=game)
+            scan_game_classes(config, game=game, lexer_backend=lexer_backend)
         case ScanModuleArgs(game, module):
-            scan_game_classes(config, game=game, module=module)
+            scan_game_classes(
+                config, game=game, module=module, lexer_backend=lexer_backend
+            )
         case ScanClassArgs(game, class_name):
-            scan_game_classes(config, game=game, identifier=class_name)
+            scan_game_classes(
+                config, game=game, identifier=class_name, lexer_backend=lexer_backend
+            )
         case ScanMethodsArgs(game, module):
-            scan_game_methods(config, game=game, module=module)
+            scan_game_methods(
+                config, game=game, module=module, lexer_backend=lexer_backend
+            )
         case ScanClassMethodsArgs(game, module, class_name):
-            scan_game_methods(config, game=game, module=module, identifier=class_name)
+            scan_game_methods(
+                config,
+                game=game,
+                module=module,
+                identifier=class_name,
+                lexer_backend=lexer_backend,
+            )
         case ListGamesArgs():
             list_games(config)

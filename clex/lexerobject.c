@@ -1,3 +1,4 @@
+#include <stdint.h>
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <structmember.h>
@@ -9,63 +10,51 @@
 
 /* lexer methods */
 
-static void
-lexer_dealloc(PyLexerObject* self)
+static void lexer_dealloc(PyLexerObject *self)
 {
 	Py_XDECREF(self->text);
-	Py_TYPE(self)->tp_free((PyObject*)self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static int
-lexer_init(PyLexerObject* self, PyObject* args)
+static int lexer_init(PyLexerObject *self, PyObject *args)
 {
-	PyObject* text = NULL, * tmp;
+	PyObject *text = NULL, *tmp;
 
 	if (!PyArg_ParseTuple(args, "U", &text))
 		return -1;
-	
+
 	if (text) {
 		tmp = self->text;
 		Py_INCREF(text);
 		self->text = text;
 		Py_XDECREF(tmp);
 
-		const char* source = PyUnicode_AsUTF8(text);
+		const char *source = PyUnicode_AsUTF8(text);
 		self->start = source;
 		self->current = source;
 	}
 	self->line = 1;
-	
+
 	return 0;
 }
 
 static PyMemberDef lexer_members[] = {
-	{"text",
-		T_OBJECT_EX,
-		offsetof(PyLexerObject, text),
-		0, "internal text"},
-	{"start",
-		T_STRING,
-		offsetof(PyLexerObject, start),
-		0, "start of current token"},
-	{"current",
-		T_STRING,
-		offsetof(PyLexerObject, current),
-		0, "current char"},
-	{"line",
-		T_INT, offsetof(PyLexerObject, line),
-		0, "line number"},
-	{NULL}
+	{ "text", T_OBJECT_EX, offsetof(PyLexerObject, text), 0,
+	  "internal text" },
+	{ "start", T_STRING, offsetof(PyLexerObject, start), 0,
+	  "start of current token" },
+	{ "current", T_STRING, offsetof(PyLexerObject, current), 0,
+	  "current char" },
+	{ "line", T_INT, offsetof(PyLexerObject, line), 0, "line number" },
+	{ NULL }
 };
 
-static inline bool
-lexer_isalpha_impl(char c)
+static inline bool lexer_isalpha_impl(char c)
 {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-static PyObject*
-lexer_isalpha(PyLexerObject* Py_UNUSED(self), PyObject* args)
+static PyObject *lexer_isalpha(PyLexerObject *Py_UNUSED(self), PyObject *args)
 {
 	char c;
 	if (!PyArg_ParseTuple(args, "C", &c))
@@ -74,14 +63,12 @@ lexer_isalpha(PyLexerObject* Py_UNUSED(self), PyObject* args)
 	return PyBool_FromLong(lexer_isalpha_impl(c));
 }
 
-static inline bool
-lexer_isdigit_impl(char c)
+static inline bool lexer_isdigit_impl(char c)
 {
 	return c >= '0' && c <= '9';
 }
 
-static PyObject*
-lexer_isdigit(PyLexerObject* self, PyObject* args)
+static PyObject *lexer_isdigit(PyLexerObject *self, PyObject *args)
 {
 	char c;
 	if (!PyArg_ParseTuple(args, "C", &c))
@@ -90,14 +77,12 @@ lexer_isdigit(PyLexerObject* self, PyObject* args)
 	return PyBool_FromLong(lexer_isdigit_impl(c));
 }
 
-static inline bool
-lexer_isalnum_impl(char c)
+static inline bool lexer_isalnum_impl(char c)
 {
 	return lexer_isalpha_impl(c) || lexer_isdigit_impl(c);
 }
 
-static PyObject*
-lexer_isalnum(PyLexerObject* self, PyObject* args)
+static PyObject *lexer_isalnum(PyLexerObject *self, PyObject *args)
 {
 	char c;
 	if (!PyArg_ParseTuple(args, "C", &c))
@@ -106,14 +91,13 @@ lexer_isalnum(PyLexerObject* self, PyObject* args)
 	return PyBool_FromLong(lexer_isalnum_impl(c));
 }
 
-static inline bool
-lexer_ishex_impl(char c)
+static inline bool lexer_ishex_impl(char c)
 {
-	return lexer_isdigit_impl(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+	return lexer_isdigit_impl(c) || (c >= 'a' && c <= 'f') ||
+	       (c >= 'A' && c <= 'F');
 }
 
-static PyObject*
-lexer_ishex(PyLexerObject* self, PyObject* args)
+static PyObject *lexer_ishex(PyLexerObject *self, PyObject *args)
 {
 	char c;
 	if (!PyArg_ParseTuple(args, "C", &c))
@@ -122,81 +106,80 @@ lexer_ishex(PyLexerObject* self, PyObject* args)
 	return PyBool_FromLong(lexer_ishex_impl(c));
 }
 
-static inline bool
-lexer_is_at_end_impl(PyLexerObject* self) {
+static inline bool lexer_is_at_end_impl(PyLexerObject *self)
+{
 	return *self->current == '\0';
 }
 
-static PyObject*
-lexer_is_at_end(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_is_at_end(PyLexerObject *self, PyObject *Py_UNUSED(args))
 {
 	return PyBool_FromLong(*self->current == '\0');
 }
 
-static inline char
-lexer_advance_impl(PyLexerObject* self) {
+static inline char lexer_advance_impl(PyLexerObject *self)
+{
 	return *self->current++;
 }
 
-static PyObject*
-lexer_advance(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_advance(PyLexerObject *self, PyObject *Py_UNUSED(args))
 {
 	return Py_BuildValue("C", *self->current++);
 }
 
-static inline char
-lexer_peek_impl(PyLexerObject* self)
+static inline char lexer_peek_impl(PyLexerObject *self)
 {
 	return *self->current;
 }
 
-static PyObject*
-lexer_peek(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_peek(PyLexerObject *self, PyObject *Py_UNUSED(args))
 {
-	PyObject* unicode = PyUnicode_FromOrdinal(*self->current);
+	PyObject *unicode = PyUnicode_FromOrdinal(*self->current);
 	return unicode;
 }
 
-static inline char
-lexer_peek_next_impl(PyLexerObject* self)
+static inline char lexer_peek_next_impl(PyLexerObject *self)
 {
-	if (lexer_is_at_end_impl(self)) return '\0';
+	if (lexer_is_at_end_impl(self))
+		return '\0';
 	return self->current[1];
 }
 
-static PyObject*
-lexer_peek_next(PyLexerObject* self, PyObject* args)
+static PyObject *lexer_peek_next(PyLexerObject *self, PyObject *args)
 {
-	if (lexer_is_at_end(self, args)) return PyUnicode_FromOrdinal('\0');
+	if (lexer_is_at_end(self, args))
+		return PyUnicode_FromOrdinal('\0');
 	return PyUnicode_FromOrdinal(self->current[1]);
 }
 
-static inline bool
-lexer_match_impl(PyLexerObject* self, char expected)
+static inline bool lexer_match_impl(PyLexerObject *self, char expected)
 {
-	if (lexer_is_at_end_impl(self)) return false;
-	if (*self->current != expected) return false;
+	if (lexer_is_at_end_impl(self))
+		return false;
+	if (*self->current != expected)
+		return false;
 	self->current++;
 	return true;
 }
 
-static PyObject*
-lexer_match(PyLexerObject* self, PyObject* args)
+static PyObject *lexer_match(PyLexerObject *self, PyObject *args)
 {
 	char expected;
 	if (!PyArg_ParseTuple(args, "C", &expected))
 		return NULL;
 
-	if (lexer_is_at_end(self, args)) Py_RETURN_FALSE;
-	if (*self->current != expected) Py_RETURN_FALSE;
+	if (lexer_is_at_end(self, args))
+		Py_RETURN_FALSE;
+	if (*self->current != expected)
+		Py_RETURN_FALSE;
 	self->current++;
 	Py_RETURN_TRUE;
 }
 
-static inline PyObject*
-lexer_make_token_impl(PyLexerObject* self, TokenType type)
+static inline PyObject *lexer_make_token_impl(PyLexerObject *self,
+					      TokenType type)
 {
-	PyTokenObject* token = (PyTokenObject*)PyType_GenericNew(&PyToken_Type, NULL, NULL);
+	PyTokenObject *token =
+		(PyTokenObject *)PyType_GenericNew(&PyToken_Type, NULL, NULL);
 
 	if (token == NULL) {
 		return NULL;
@@ -209,21 +192,21 @@ lexer_make_token_impl(PyLexerObject* self, TokenType type)
 		return NULL;
 	}
 
-	return (PyObject*)token;
+	return (PyObject *)token;
 }
 
-static PyObject*
-lexer_make_token(PyLexerObject* self, PyObject* args)
+static PyObject *lexer_make_token(PyLexerObject *self, PyObject *args)
 {
-	PyTokenObject* token;
-	PyObject* argList;
-	PyObject* literal;
+	PyTokenObject *token;
+	PyObject *argList;
+	PyObject *literal;
 	int type;
-	
+
 	if (!PyArg_ParseTuple(args, "i", &type))
 		return NULL;
 
-	literal = PyUnicode_FromKindAndData(1, self->start, (Py_ssize_t)(self->current - self->start));
+	literal = PyUnicode_FromKindAndData(
+		1, self->start, (Py_ssize_t)(self->current - self->start));
 	if (literal == NULL)
 		return NULL;
 
@@ -232,20 +215,19 @@ lexer_make_token(PyLexerObject* self, PyObject* args)
 	if (argList == NULL)
 		return NULL;
 
-	token = (PyTokenObject*)PyObject_CallObject((PyObject*)&PyToken_Type, argList);
+	token = (PyTokenObject *)PyObject_CallObject((PyObject *)&PyToken_Type,
+						     argList);
 	Py_DECREF(argList);
 	if (token == NULL)
 		return NULL;
 
 	self->start = self->current;
 
-	return (PyObject*)token;
+	return (PyObject *)token;
 }
 
-static inline void
-lexer_skip_whitespace_impl(PyLexerObject* self)
+static inline void lexer_skip_whitespace_impl(PyLexerObject *self)
 {
-	int newlines = 0;
 	for (;;) {
 		char c = lexer_peek_impl(self);
 		switch (c) {
@@ -257,7 +239,6 @@ lexer_skip_whitespace_impl(PyLexerObject* self)
 		case '\n':
 			self->line++;
 			lexer_advance_impl(self);
-			if (newlines >= 2) return;
 			break;
 		default:
 			return;
@@ -265,141 +246,202 @@ lexer_skip_whitespace_impl(PyLexerObject* self)
 	}
 }
 
-static PyObject*
-lexer_skip_whitespace(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_skip_whitespace(PyLexerObject *self,
+				       PyObject *Py_UNUSED(args))
 {
 	lexer_skip_whitespace_impl(self);
 	Py_RETURN_NONE;
 }
 
-static inline PyObject*
-lexer_number_impl(PyLexerObject* self)
+static inline PyObject *lexer_number_impl(PyLexerObject *self)
 {
-	while (lexer_isdigit_impl(lexer_peek_impl(self))) lexer_advance_impl(self);
+	while (lexer_isdigit_impl(lexer_peek_impl(self)))
+		lexer_advance_impl(self);
 
 	return lexer_make_token_impl(self, TOKEN_NUMBER);
 }
 
-static PyObject*
-lexer_number(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_number(PyLexerObject *self, PyObject *Py_UNUSED(args))
 {
 	return lexer_number_impl(self);
 }
 
-static inline PyObject*
-lexer_hexadecimal_impl(PyLexerObject* self)
+static inline PyObject *lexer_hexadecimal_impl(PyLexerObject *self)
 {
-	while (lexer_ishex_impl(lexer_peek_impl(self))) lexer_advance_impl(self);
+	while (lexer_ishex_impl(lexer_peek_impl(self)))
+		lexer_advance_impl(self);
 
 	return lexer_make_token_impl(self, TOKEN_HEX);
 }
 
-static PyObject*
-lexer_hexadecimal(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_hexadecimal(PyLexerObject *self,
+				   PyObject *Py_UNUSED(args))
 {
 	return lexer_hexadecimal_impl(self);
 }
 
-static inline PyObject*
-lexer_identifier_impl(PyLexerObject* self)
+static inline bool is_ident_char(char c)
 {
-	while (lexer_isalnum_impl(lexer_peek_impl(self)) || lexer_peek_impl(self) == '_') lexer_advance_impl(self);
+	return lexer_isalnum_impl(c) || c == '_';
+}
+
+static inline void eat_identifier_simple(PyLexerObject *self)
+{
+	while (is_ident_char(lexer_peek_impl(self)))
+		lexer_advance_impl(self);
+}
+
+static inline void eat_identifier_parameterized(PyLexerObject *self)
+{
+	if (lexer_peek_impl(self) != '<')
+		return;
+
+	// parmeterized identifier
+	lexer_advance_impl(self); // '<'
+	int nestedness = 1;
+
+	char c;
+	while (c = lexer_peek_impl(self), c != '\0' && nestedness != 0) {
+		if (c == '<')
+			++nestedness;
+		if (c == '>')
+			--nestedness;
+
+		lexer_advance_impl(self);
+	}
+	if (c == '>')
+		lexer_advance_impl(self);
+}
+
+static inline void eat_identifier_complex(PyLexerObject *self)
+{
+	eat_identifier_simple(self);
+	eat_identifier_parameterized(self);
+}
+
+static inline PyObject *lexer_identifier_impl(PyLexerObject *self)
+{
+	eat_identifier_simple(self);
+
+	if (lexer_peek_impl(self) == '.') { // module
+		lexer_advance_impl(self);
+		eat_identifier_simple(self);
+		return lexer_make_token_impl(self, TOKEN_MODULE);
+	}
+
+	while (lexer_peek_impl(self) == ':' &&
+	       lexer_peek_next_impl(self) == ':') { // namespace binder
+		lexer_advance_impl(self);
+		lexer_advance_impl(self);
+
+		eat_identifier_complex(self);
+	}
+
 	return lexer_make_token_impl(self, TOKEN_IDENTIFIER);
 }
 
-static PyObject*
-lexer_identifier(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_identifier(PyLexerObject *self,
+				  PyObject *Py_UNUSED(args))
 {
 	return lexer_identifier_impl(self);
 }
 
-static inline PyObject*
-lexer_scan_token_impl(PyLexerObject* self)
+static inline void lexer_skip_braced_expression_impl(PyLexerObject *self)
 {
+	if (lexer_peek_impl(self) != '(')
+		return;
+
+	lexer_advance_impl(self);
+	char c = lexer_peek_impl(self);
+	while (c != '\0' && c != ')')
+		c = lexer_advance_impl(self);
+
+	if (c == ')')
+		lexer_advance_impl(self);
+}
+
+static inline PyObject *lexer_scan_token_impl(PyLexerObject *self)
+{
+	lexer_skip_whitespace_impl(self);
+	lexer_skip_braced_expression_impl(self);
 	lexer_skip_whitespace_impl(self);
 
 	self->start = self->current;
 
-	if (lexer_is_at_end_impl(self)) return lexer_make_token_impl(self, TOKEN_EOF);
+	if (lexer_is_at_end_impl(self))
+		return lexer_make_token_impl(self, TOKEN_EOF);
 
 	char c = lexer_advance_impl(self);
 
 	if (lexer_isdigit_impl(c)) {
-		return lexer_match_impl(self, 'x')
-			? lexer_hexadecimal_impl(self)
-			: lexer_number_impl(self);
+		return lexer_match_impl(self, 'x') ?
+			       lexer_hexadecimal_impl(self) :
+			       lexer_number_impl(self);
 	}
 
 	if (lexer_isalpha_impl(c) || c == '_') {
 		return lexer_identifier_impl(self);
 	}
 
-	switch (c)
-	{
-	case '(': return lexer_make_token_impl(self, TOKEN_LEFT_PAREN);
-	case ')': return lexer_make_token_impl(self, TOKEN_RIGHT_PAREN);
-	case '<': return lexer_make_token_impl(self, TOKEN_LEFT_ANGLE);
-	case '>': return lexer_make_token_impl(self, TOKEN_RIGHT_ANGLE);
-	case ':': return lexer_make_token_impl(self, lexer_match_impl(self, ':') ? TOKEN_DOUBLECOLON : TOKEN_COLON);
-	case '`': return lexer_make_token_impl(self, TOKEN_BACKTICK);
-	case '\'': return lexer_make_token_impl(self, TOKEN_APOSTROPHE);
-	case '.': return lexer_make_token_impl(self, TOKEN_DOT);
-	case ',': return lexer_make_token_impl(self, TOKEN_COMMA);
-	case '&': return lexer_make_token_impl(self, TOKEN_AMPERSAND);
-	case '*': return lexer_make_token_impl(self, TOKEN_ASTERISK);
-	case '_': return lexer_make_token_impl(self, TOKEN_UNDERSCORE);
-	case '-': return lexer_make_token_impl(self, lexer_match_impl(self, '>') ? TOKEN_ARROW :  TOKEN_HYPHEN);
+	switch (c) {
+	case '<':
+		return lexer_make_token_impl(self, TOKEN_LEFT_ANGLE);
+	case '>':
+		return lexer_make_token_impl(self, TOKEN_RIGHT_ANGLE);
+	case ':':
+		return lexer_make_token_impl(self, lexer_match_impl(self, ':') ?
+							   TOKEN_DOUBLECOLON :
+							   TOKEN_COLON);
+	case '`':
+		return lexer_make_token_impl(self, TOKEN_BACKTICK);
+	case '\'':
+		return lexer_make_token_impl(self, TOKEN_APOSTROPHE);
+	case '.':
+		return lexer_make_token_impl(self, TOKEN_DOT);
+	case ',':
+		return lexer_make_token_impl(self, TOKEN_COMMA);
+	case '&':
+		return lexer_make_token_impl(self, TOKEN_AMPERSAND);
+	case '*':
+		return lexer_make_token_impl(self, TOKEN_ASTERISK);
+	case '_':
+		return lexer_make_token_impl(self, TOKEN_UNDERSCORE);
+	case '-':
+		return lexer_make_token_impl(self, lexer_match_impl(self, '>') ?
+							   TOKEN_ARROW :
+							   TOKEN_HYPHEN);
 	}
 
 	return lexer_make_token_impl(self, TOKEN_ERROR);
 }
 
-static PyObject*
-lexer_scan_token(PyLexerObject* self, PyObject* Py_UNUSED(args))
+static PyObject *lexer_scan_token(PyLexerObject *self,
+				  PyObject *Py_UNUSED(args))
 {
 	return lexer_scan_token_impl(self);
 }
 
 static PyMethodDef lexer_methods[] = {
-	{"isalpha",
-		(PyCFunction)lexer_isalpha,
-		METH_VARARGS | METH_STATIC, NULL},
-	{"isdigit",
-		(PyCFunction)lexer_isdigit,
-		METH_VARARGS | METH_STATIC, NULL},
-	{"isalnum",
-		(PyCFunction)lexer_isalnum,
-		METH_VARARGS | METH_STATIC, NULL},
-	{"skip_whitespace",
-		(PyCFunction)lexer_skip_whitespace,
-		METH_NOARGS, NULL},
-	{"is_at_end",
-		(PyCFunction)lexer_is_at_end,
-		METH_NOARGS, NULL},
-	{"advance",
-		(PyCFunction)lexer_advance,
-		METH_NOARGS, NULL},
-	{"peek",
-		(PyCFunction)lexer_peek,
-		METH_NOARGS, NULL},
-	{"peek_next",
-		(PyCFunction)lexer_peek_next,
-		METH_NOARGS, NULL},
-	{"match",
-		(PyCFunction)lexer_match,
-		METH_VARARGS, NULL},
-	{"make_token",
-		(PyCFunction)lexer_make_token,
-		METH_VARARGS, NULL},
-	{"scan_token",
-		(PyCFunction)lexer_scan_token,
-		METH_VARARGS, NULL},
-	{NULL}
+	{ "isalpha", (PyCFunction)lexer_isalpha, METH_VARARGS | METH_STATIC,
+	  NULL },
+	{ "isdigit", (PyCFunction)lexer_isdigit, METH_VARARGS | METH_STATIC,
+	  NULL },
+	{ "isalnum", (PyCFunction)lexer_isalnum, METH_VARARGS | METH_STATIC,
+	  NULL },
+	{ "skip_whitespace", (PyCFunction)lexer_skip_whitespace, METH_NOARGS,
+	  NULL },
+	{ "is_at_end", (PyCFunction)lexer_is_at_end, METH_NOARGS, NULL },
+	{ "advance", (PyCFunction)lexer_advance, METH_NOARGS, NULL },
+	{ "peek", (PyCFunction)lexer_peek, METH_NOARGS, NULL },
+	{ "peek_next", (PyCFunction)lexer_peek_next, METH_NOARGS, NULL },
+	{ "match", (PyCFunction)lexer_match, METH_VARARGS, NULL },
+	{ "make_token", (PyCFunction)lexer_make_token, METH_VARARGS, NULL },
+	{ "scan_token", (PyCFunction)lexer_scan_token, METH_VARARGS, NULL },
+	{ NULL }
 };
 
 PyTypeObject PyLexer_Type = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	.tp_name = "clex.Lexer",
+	PyVarObject_HEAD_INIT(NULL, 0).tp_name = "clex.Lexer",
 	.tp_basicsize = sizeof(PyLexerObject),
 	.tp_itemsize = 0,
 	/* methods */

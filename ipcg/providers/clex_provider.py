@@ -14,8 +14,6 @@ _CLEX_MAP: dict[int, TokenKind] = {
     clex.TOKEN_NUMBER: TokenKind.NUMBER,
     clex.TOKEN_COLON: TokenKind.COLON,
     clex.TOKEN_DOUBLECOLON: TokenKind.DOUBLECOLON,
-    clex.TOKEN_LEFT_PAREN: TokenKind.LEFT_PAREN,
-    clex.TOKEN_RIGHT_PAREN: TokenKind.RIGHT_PAREN,
     clex.TOKEN_LEFT_ANGLE: TokenKind.LEFT_ANGLE,
     clex.TOKEN_RIGHT_ANGLE: TokenKind.RIGHT_ANGLE,
     clex.TOKEN_ARROW: TokenKind.ARROW,

@@ -12,8 +12,6 @@ typedef enum {
 	TOKEN_IDENTIFIER,
 	TOKEN_MODULE,
 	TOKEN_COLON,
-	TOKEN_LEFT_PAREN,
-	TOKEN_RIGHT_PAREN,
 	TOKEN_LEFT_ANGLE,
 	TOKEN_RIGHT_ANGLE,
 	TOKEN_HEX,
@@ -36,15 +34,14 @@ typedef enum {
 #define CLEX_STRINGIFY(token_type) #token_type
 
 typedef struct {
-	PyObject_HEAD
-	PyObject* literal;
+	PyObject_HEAD PyObject *literal;
 	TokenType type;
 	int line;
 } PyTokenObject;
 
 PyAPI_DATA(PyTypeObject) PyToken_Type;
 
-PyAPI_FUNC(int) PyToken_Init(PyTokenObject* self, TokenType type, const char* literal, size_t size, int line);
+PyAPI_FUNC(int) PyToken_Init(PyTokenObject *self, TokenType type, const char *literal, size_t size, int line);
 
 #ifdef __cplusplus
 }

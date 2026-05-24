@@ -7,12 +7,12 @@ from typing import NoReturn
 from ipcg.tokens import Token, TokenKind
 
 from .exeptions import ParseException
-from .statement import Class, ModuleBlock, Statement, VTable, VTableEntry
+from .statement import Class, ModuleBlock, VTable, VTableEntry
 
 
 class InheritanceParser:
-    def __init__(self, token_stream) -> None:
-        self._token_stream = token_stream
+    def __init__(self, token_stream: Iterator[Token]) -> None:
+        self._token_stream: Iterator[Token] = token_stream
 
         self._current: Token = Token(TokenKind.EOF, "", 0)
         self._previous: Token = Token(TokenKind.EOF, "", 0)
@@ -21,6 +21,7 @@ class InheritanceParser:
         self._previous = self._current
         try:
             self._current = next(self._token_stream)
+            print(self._current)
         except StopIteration:
             self._current = Token(TokenKind.EOF, "EOF", 0)
 
@@ -58,7 +59,7 @@ class InheritanceParser:
         print(f"Error: {message} Received: {self._current}.")
         raise ParseException(f"{message} At line {self._current.line}.")
 
-    def _module_declaration(self) -> ModuleBlock:
+    def _module_declaration(self) -> ModuleBlock[Class]:
         """
         module_declaration : begin_module vtable_list end_module
         """
@@ -67,9 +68,9 @@ class InheritanceParser:
         class_statements: list[Class] = []
         while self._check(TokenKind.IDENTIFIER):
             class_statements.append(self._class_statement())
-            self._consume(
+            _ = self._match(
                 TokenKind.EMPTY_LINE,
-                "Different type declarations need to be separated by a newline.",
+                # "Different type declarations need to be separated by a newline.",
             )
         module_end_literal = self._end_module().literal
         if module_begin_literal != module_end_literal:
@@ -140,13 +141,13 @@ class InheritanceParser:
         offset_number = int(offset.literal, 16)
         return Class(class_name.literal, [], offset_number, 0)
 
-    def parse(self) -> list[ModuleBlock[Statement]]:
-        statements: list[ModuleBlock[Statement]] = []
+    def parse(self) -> list[ModuleBlock[Class]]:
+        statements: list[ModuleBlock[Class]] = []
         self._advance()
 
         while self._current.kind is not TokenKind.EOF:
             statements.append(self._module_declaration())
-            self._match(TokenKind.EMPTY_LINE)
+            _ = self._match(TokenKind.EMPTY_LINE)
         return statements
 
 
@@ -198,7 +199,7 @@ class VTableParser:
         print(f"Error: {message} Received: {self._current}.", file=sys.stderr)
         raise ParseException(f"{message} At line {self._current.line}.")
 
-    def _module_declaration(self) -> ModuleBlock:
+    def _module_declaration(self) -> ModuleBlock[VTable]:
         """
         module_declaration : begin_module vtable_list end_module
         """
@@ -206,11 +207,14 @@ class VTableParser:
         vtable_lists: list[VTable] = []
         while self._check(TokenKind.M_FLAG):
             vtable_lists.append(self._vtable_declaration())
-            self._consume(TokenKind.EMPTY_LINE, "Expect empty line after vtable.")
+            _ = self._match(
+                TokenKind.EMPTY_LINE,
+                # "Expect empty line after vtable.",
+            )
         module_end_literal = self._end_module().literal
         if module_begin_literal != module_end_literal:
             raise ParseException("Module name did not match declared module name.")
-        self._match(TokenKind.EMPTY_LINE)
+        _ = self._match(TokenKind.EMPTY_LINE)
         return ModuleBlock(module_begin_literal, vtable_lists)
 
     def _begin_module(self) -> Token:
@@ -309,8 +313,8 @@ class VTableParser:
             index_number, address_number, relative_address_number, function_identifier
         )
 
-    def parse(self) -> list[ModuleBlock]:
-        statements: list[ModuleBlock] = []
+    def parse(self) -> list[ModuleBlock[VTable]]:
+        statements: list[ModuleBlock[VTable]] = []
         self._advance()
 
         while self._current.kind is not TokenKind.EOF:

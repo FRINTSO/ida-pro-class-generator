@@ -11,7 +11,8 @@ static struct PyModuleDef moduledef = {
 };
 
 /* Initialization function for the module */
-PyMODINIT_FUNC PyInit_clex(void) {
+PyMODINIT_FUNC PyInit_clex(void)
+{
 	PyObject *m, *d, *s;
 
 	/* Create the module and add the functions */
@@ -32,18 +33,15 @@ PyMODINIT_FUNC PyInit_clex(void) {
 	if (PyType_Ready(&PyLexer_Type) < 0)
 		goto err;
 
-#define ADDTOKEN(NAME) \
-	s = PyLong_FromLong(NAME); \
+#define ADDTOKEN(NAME)                     \
+	s = PyLong_FromLong(NAME);         \
 	PyDict_SetItemString(d, #NAME, s); \
 	Py_DECREF(s)
-
 
 	ADDTOKEN(TOKEN_EOF);
 	ADDTOKEN(TOKEN_IDENTIFIER);
 	ADDTOKEN(TOKEN_MODULE);
 	ADDTOKEN(TOKEN_COLON);
-	ADDTOKEN(TOKEN_LEFT_PAREN);
-	ADDTOKEN(TOKEN_RIGHT_PAREN);
 	ADDTOKEN(TOKEN_LEFT_ANGLE);
 	ADDTOKEN(TOKEN_RIGHT_ANGLE);
 	ADDTOKEN(TOKEN_HEX);
@@ -64,29 +62,27 @@ PyMODINIT_FUNC PyInit_clex(void) {
 #undef ADDTOKEN
 
 	Py_INCREF(&PyToken_Type);
-	if (PyModule_AddObject(m, "Token", (PyObject*)&PyToken_Type) < 0) {
+	if (PyModule_AddObject(m, "Token", (PyObject *)&PyToken_Type) < 0) {
 		Py_DECREF(&PyToken_Type);
 		goto err;
 	}
 
 	// PyDict_SetItemString(d, "Token", (PyObject*)&PyToken_Type);
-	PyDict_SetItemString(d, "Lexer", (PyObject*)&PyLexer_Type);
+	PyDict_SetItemString(d, "Lexer", (PyObject *)&PyLexer_Type);
 
 	return m;
 
 err:
 	if (!PyErr_Occurred()) {
-		PyErr_SetString(PyExc_RuntimeError,
-			"cannot load clex module.");
+		PyErr_SetString(PyExc_RuntimeError, "cannot load clex module.");
 	}
 	Py_DECREF(m);
 	return NULL;
 }
 
-int
-main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-	wchar_t* program = Py_DecodeLocale(argv[0], NULL);
+	wchar_t *program = Py_DecodeLocale(argv[0], NULL);
 	if (program == NULL) {
 		fprintf(stderr, "Fatal error: cannot decode argv[0]\n");
 		exit(1);
@@ -94,7 +90,8 @@ main(int argc, char* argv[])
 
 	/* Add a built-in module, before Py_Initialize */
 	if (PyImport_AppendInittab("clex", PyInit_clex) == -1) {
-		fprintf(stderr, "Error: could not extend in-built modules table\n");
+		fprintf(stderr,
+			"Error: could not extend in-built modules table\n");
 		exit(1);
 	}
 
@@ -108,7 +105,7 @@ main(int argc, char* argv[])
 	/* Optionally import the module; alternatively,
 	   import can be deferred until the embedded script
 	   imports it. */
-	PyObject* pmodule = PyImport_ImportModule("clex");
+	PyObject *pmodule = PyImport_ImportModule("clex");
 	if (!pmodule) {
 		PyErr_Print();
 		fprintf(stderr, "Error: could not import module 'clex'\n");
