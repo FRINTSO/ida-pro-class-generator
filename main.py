@@ -6,6 +6,7 @@ from class_resolver import ClassResolver
 from lexer import Lexer
 from module_linker import link_modules
 from module_printer import Printer as ModulePrinter
+from c_printer import CPrinter as CModulePrinter
 from method_printer import Printer as MethodPrinter
 from parser import InheritanceParser, VTableParser
 
@@ -92,7 +93,7 @@ def scan_game_classes(config: ConfigParser, *, game: str, module: str = "", iden
     resolver = ClassResolver()
     resolver.resolve(linked_modules)
 
-    printer = ModulePrinter(module, identifier) if identifier else ModulePrinter()
+    printer = CModulePrinter(module, identifier) if identifier else CModulePrinter()
     printer.print(linked_modules)
 
 
@@ -168,5 +169,5 @@ def main(*args):
 
 
 if __name__ == '__main__':
-    # main(*sys.argv[1:])
-    main("scan-game", "Fallout4")
+    main(*sys.argv[1:])
+    # main("scan-game", "Fallout4")

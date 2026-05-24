@@ -86,19 +86,20 @@ class ClassResolver(Statement.Visitor):
         cls.bases = bases
         cls.set_size(sizeof_bases, False)
 
-        # self.__print_vftable_function_names(cls)
+        self.__print_vftable_function_names(cls)
         # Update vtable methods
         self._set_vtable_function_names(cls)
-        # self.__print_vftable_function_names(cls)
+        self.__print_vftable_function_names(cls)
+        # print()
 
     @staticmethod
     def __print_vftable_function_names(cls: Class) -> None:
         if not cls.vtable: return
-
-        print(f"CLASS: {cls.identifier}")
-        for entry in cls.vtable.vtable_entry_list:
-            print(entry.function)
-        print()
+        #
+        # print(f"CLASS: {cls.identifier}")
+        # for entry in cls.vtable.vtable_entry_list:
+        #     print(entry.function)
+        # print()
 
     def _override_vtable_function_names(self, old_vtable: VTable, new_vtable: VTable) -> None:
         owner_cls: Optional[Class] = None
@@ -131,58 +132,59 @@ class ClassResolver(Statement.Visitor):
                 entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
                 entry.function.definer = cls
                 entry.function.implementer = cls
-        else:
-            # find first base class with same offset that has a vtable
-            valid_base: Class = cls.bases[0]
-            while not valid_base.vtable:
-                if not len(valid_base.bases):
-                    if valid_base.vtable is None:
-                        for entry in cls.vtable.vtable_entry_list:
-                            entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
-                            entry.function.definer = cls
-                            entry.function.implementer = cls
-                    return
-                valid_base = valid_base.bases[0]
+            return
 
-            owner_cls = None
-            if cls.vtable.owner and cls.vtable.owner in self._current_module_type_symbols:
-                owner_cls = self._current_module_type_symbols[cls.vtable.owner]
-            elif cls.vtable.owner:
+        # find first base class with same offset that has a vtable
+        valid_base: Class = cls.bases[0]
+        while not valid_base.vtable:
+            if not len(valid_base.bases):
+                if valid_base.vtable is None:
+                    for entry in cls.vtable.vtable_entry_list:
+                        entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
+                        entry.function.definer = cls
+                        entry.function.implementer = cls
                 return
+            valid_base = valid_base.bases[0]
 
-            for entry in valid_base.vtable.vtable_entry_list:
-                try:
-                    cls_entry = cls.vtable.vtable_entry_list[entry.index]
-                except IndexError:
-                    raise IndexError(cls.identifier, valid_base.identifier)
-                cls_entry.function.definer = entry.function.definer
-                cls_entry.function.identifier = entry.function.identifier
+        owner_cls = None
+        if cls.vtable.owner and cls.vtable.owner in self._current_module_type_symbols:
+            owner_cls = self._current_module_type_symbols[cls.vtable.owner]
+        elif cls.vtable.owner:
+            return
+
+        for entry in valid_base.vtable.vtable_entry_list:
+            try:
+                cls_entry = cls.vtable.vtable_entry_list[entry.index]
+            except IndexError:
+                raise IndexError(cls.identifier, valid_base.identifier)
+            cls_entry.function.definer = entry.function.definer
+            cls_entry.function.identifier = entry.function.identifier
+            if cls_entry.address == entry.address:
+                cls_entry.function.implementer = entry.function.implementer
+            elif owner_cls:
+                cls_entry.function.implementer = owner_cls
+            else:
+                cls_entry.function.implementer = cls
+
+        for entry in cls.vtable.vtable_entry_list[valid_base.vtable.vtable_count:]:
+            entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
+            entry.function.definer = cls
+            if owner_cls:
+                entry.function.implementer = owner_cls
+            else:
+                entry.function.implementer = cls
+
+        for valid_base in cls.bases[1:]:
+            if not valid_base.vtable: continue
+            if valid_base.identifier not in self._current_module_vtable_symbols: continue
+            established_vtable = self._current_module_vtable_symbols[valid_base.identifier]
+
+            for entry in established_vtable.vtable_entry_list:  # if cls_entry == entry, then continue
+                cls_entry = valid_base.vtable.vtable_entry_list[entry.index]
                 if cls_entry.address == entry.address:
                     cls_entry.function.implementer = entry.function.implementer
-                elif owner_cls:
-                    cls_entry.function.implementer = owner_cls
                 else:
                     cls_entry.function.implementer = cls
-
-            for entry in cls.vtable.vtable_entry_list[valid_base.vtable.vtable_count:]:
-                entry.function.identifier = f"{cls.identifier}::Function{entry.index}"
-                entry.function.definer = cls
-                if owner_cls:
-                    entry.function.implementer = owner_cls
-                else:
-                    entry.function.implementer = cls
-
-            for valid_base in cls.bases[1:]:
-                if not valid_base.vtable: continue
-                if valid_base.identifier not in self._current_module_vtable_symbols: continue
-                established_vtable = self._current_module_vtable_symbols[valid_base.identifier]
-
-                for entry in established_vtable.vtable_entry_list:  # if cls_entry == entry, then continue
-                    cls_entry = valid_base.vtable.vtable_entry_list[entry.index]
-                    if cls_entry.address == entry.address:
-                        cls_entry.function.implementer = entry.function.implementer
-                    else:
-                        cls_entry.function.implementer = cls
 
     @staticmethod
     def _adjust_sizeof_bases(bases: list[Class]) -> None:
