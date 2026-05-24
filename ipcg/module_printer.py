@@ -1,10 +1,6 @@
 import re
 from typing import Optional
 
-from .class_resolver import ClassResolver
-from .lexer import Lexer
-from .module_linker import link_modules
-from .parser import InheritanceParser, VTableParser
 from .statement import Class, LinkedModuleBlock, Statement
 
 
@@ -133,33 +129,3 @@ class Printer(Statement.Visitor):
         formatted += "};\n"
 
         return formatted
-
-
-def main():
-    # lexer = InheritanceLexer(r"inheritance.txt")
-    with open(r"C:\Users\willi\Class_Dumper\RAGE2\inheritance.txt", "r") as read:
-        inheritance_text = read.read()
-    with open(r"C:\Users\willi\Class_Dumper\RAGE2\vtable.txt", "r") as read:
-        vtable_text = read.read()
-
-    lexer = Lexer()
-    inheritance_tokens = lexer.tokenize(inheritance_text)
-    vtable_tokens = lexer.tokenize(vtable_text)
-
-    inheritance_parser = InheritanceParser(inheritance_tokens)
-    vtable_parser = VTableParser(vtable_tokens)
-
-    class_modules = inheritance_parser.parse()
-    vtable_modules = vtable_parser.parse()
-
-    linked_modules = link_modules(class_modules, vtable_modules)
-
-    resolver = ClassResolver()
-    resolver.resolve(linked_modules)
-
-    printer = Printer(module="RAGE2.exe")
-    printer.print(linked_modules)
-
-
-if __name__ == "__main__":
-    main()

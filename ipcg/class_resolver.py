@@ -1,8 +1,5 @@
 import sys
 
-from . import module_linker
-from .lexer import Lexer
-from .parser import InheritanceParser, VTableParser
 from .statement import Class, LinkedModuleBlock, Statement, VTable
 
 
@@ -235,31 +232,3 @@ class ClassResolver(Statement.Visitor):
                 if retrieved_base:
                     return retrieved_base
         return None
-
-
-def main() -> None:
-    with open(
-        r"C:\Users\willi\Desktop\Class_Dumper\hitman3\inheritance.txt", "r"
-    ) as read:
-        inheritance_text = read.read()
-    with open(r"C:\Users\willi\Desktop\Class_Dumper\hitman3\vtable.txt", "r") as read:
-        vtable_text = read.read()
-
-    lexer = Lexer()
-    inheritance_tokens = lexer.tokenize(inheritance_text)
-    vtable_tokens = lexer.tokenize(vtable_text)
-
-    inheritance_parser = InheritanceParser(inheritance_tokens)
-    vtable_parser = VTableParser(vtable_tokens)
-
-    class_modules = inheritance_parser.parse()
-    vtable_modules = vtable_parser.parse()
-
-    linked_modules = module_linker.link_modules(class_modules, vtable_modules)
-
-    resolver = ClassResolver()
-    resolver.resolve(linked_modules)
-
-
-if __name__ == "__main__":
-    main()

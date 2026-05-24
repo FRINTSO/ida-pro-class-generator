@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ipcg.class_resolver import ClassResolver
-from ipcg.lexer import Lexer
+from ipcg.lexer import get_lexer_provider
 from ipcg.method_printer import Printer as MethodPrinter
 from ipcg.module_linker import link_modules
 from ipcg.module_printer import Printer as ModulePrinter
@@ -85,7 +85,7 @@ def scan_game_classes(
     config: ConfigParser, *, game: str, module: str = "", identifier: str = ""
 ) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
-    lexer = Lexer()
+    lexer = get_lexer_provider()
     inheritance_tokens = lexer.tokenize(inheritance_text)
     vtable_tokens = lexer.tokenize(vtable_text)
 
@@ -108,7 +108,7 @@ def scan_game_methods(
     config: ConfigParser, *, game: str, module: str, identifier: str = ""
 ) -> None:
     inheritance_text, vtable_text = load_game_class_files(config, game)
-    lexer = Lexer()
+    lexer = get_lexer_provider()
     inheritance_tokens = lexer.tokenize(inheritance_text)
     vtable_tokens = lexer.tokenize(vtable_text)
 

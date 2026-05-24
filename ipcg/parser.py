@@ -1,53 +1,48 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, NoReturn
+from collections.abc import Iterator
+from typing import NoReturn
 
-from pygments.token import Name, Number, Token, Whitespace
+from ipcg.tokens import Token, TokenKind
 
 from .exeptions import ParseException
-from .lexer import Lexer
-from .statement import Class, ModuleBlock, VTable, VTableEntry
-
-if TYPE_CHECKING:
-    from pygments.token import _TokenType
-
-    TokenType = tuple[_TokenType, str, int]
+from .statement import Class, ModuleBlock, Statement, VTable, VTableEntry
 
 
 class InheritanceParser:
     def __init__(self, token_stream) -> None:
         self._token_stream = token_stream
 
-        self._current: TokenType = (Token, "", 0)
-        self._previous: TokenType = (Token, "", 0)
+        self._current: Token = Token(TokenKind.EOF, "", 0)
+        self._previous: Token = Token(TokenKind.EOF, "", 0)
 
     def _advance(self) -> None:
         self._previous = self._current
         try:
             self._current = next(self._token_stream)
         except StopIteration:
-            self._current = (Token.EOF, "EOF", 0)
+            self._current = Token(TokenKind.EOF, "EOF", 0)
 
-    def _consume(self, token_type: _TokenType, message: str) -> TokenType | NoReturn:
-        if self._current[0] == token_type:
+    def _consume(self, token_kind: TokenKind, message: str) -> Token | NoReturn:
+        if self._current.kind == token_kind:
             self._advance()
             return self._previous
         raise self._error(message)
 
     def _consume_literal(self, literal: str, message: str) -> None:
-        if self._current[1] == literal:
+        if self._current.literal == literal:
             self._advance()
             return
         raise self._error(message)
 
-    def _check(self, token_type: _TokenType) -> bool:
-        return self._current[0] is token_type
+    def _check(self, token_kind: TokenKind) -> bool:
+        return self._current.kind is token_kind
 
     def _check_literal(self, literal: str) -> bool:
-        return self._current[1] == literal
+        return self._current.literal == literal
 
-    def _match(self, token_type: _TokenType) -> bool:
+    def _match(self, token_type: TokenKind) -> bool:
         if not self._check(token_type):
             return False
         self._advance()
@@ -61,42 +56,42 @@ class InheritanceParser:
 
     def _error(self, message: str) -> NoReturn:
         print(f"Error: {message} Received: {self._current}.")
-        raise ParseException(f"{message} At line {self._current[2]}.")
+        raise ParseException(f"{message} At line {self._current.line}.")
 
     def _module_declaration(self) -> ModuleBlock:
         """
         module_declaration : begin_module vtable_list end_module
         """
-        _, module_begin_literal, _ = self._begin_module()
+        module_begin_literal = self._begin_module().literal
 
         class_statements: list[Class] = []
-        while self._check(Name.Identifier):
+        while self._check(TokenKind.IDENTIFIER):
             class_statements.append(self._class_statement())
             self._consume(
-                Whitespace.EmptyLine,
+                TokenKind.EMPTY_LINE,
                 "Different type declarations need to be separated by a newline.",
             )
-        _, module_end_literal, _ = self._end_module()
+        module_end_literal = self._end_module().literal
         if module_begin_literal != module_end_literal:
             raise ParseException("Module name did not match declared module name.")
         return ModuleBlock(module_begin_literal, class_statements)
 
-    def _begin_module(self) -> TokenType:
+    def _begin_module(self) -> Token:
         """
         begin_module : '<' module '>'
         """
         self._consume_literal("<", "Missing '<' before module name.")
-        token = self._consume(Name.Module, "Invalid module name.")
+        token = self._consume(TokenKind.MODULE, "Invalid module name.")
         self._consume_literal(">", "Missing '>' after module name.")
         return token
 
-    def _end_module(self) -> TokenType:
+    def _end_module(self) -> Token:
         """
         end_module : '<' 'end' module '>'
         """
         self._consume_literal("<", "Missing '<' before 'end'.")
         self._consume_literal("end", "Missing 'end' after '<'.")
-        token = self._consume(Name.Module, "Invalid module name.")
+        token = self._consume(TokenKind.MODULE, "Invalid module name.")
         self._consume_literal(">", "Missing '>' after module name.")
         return token
 
@@ -104,7 +99,7 @@ class InheritanceParser:
         """
         class_statement : identifier (':' class_inheritance_list)?
         """
-        _, class_name, _ = self._consume(Name.Identifier, "Expect identifier.")
+        token = self._consume(TokenKind.IDENTIFIER, "Expect identifier.")
         base_classes: list[Class] = []
         if self._match_literal(":"):
             unresolved_base_classes: list[Class] = self._class_inheritance_list()
@@ -121,15 +116,15 @@ class InheritanceParser:
                     current_class = class_statement
 
         # if class has vtable, then class size is at least 8 bytes
-        return Class(class_name, base_classes, 0, 0)
+        return Class(token.literal, base_classes, 0, 0)
 
     def _class_inheritance_list(self) -> list[Class]:
         """
         CLASS_INHERITANCE_LIST : CLASS_INHERITANCE+
         """
-        if self._check(Number.Hex):
+        if self._check(TokenKind.HEX):
             bases: list[Class] = []
-            while self._check(Number.Hex):
+            while self._check(TokenKind.HEX):
                 bases.append(self._class_inheritance())
             bases.sort(key=lambda x: x.offset)
             return bases
@@ -140,55 +135,55 @@ class InheritanceParser:
         """
         class_inheritance : hexadecimal identifier
         """
-        _, offset, _ = self._consume(Number.Hex, "Expect hexadecimal offset.")
-        _, class_name, _ = self._consume(Name.Identifier, "Expect identifier.")
-        offset_number = int(offset, 16)
-        return Class(class_name, [], offset_number, 0)
+        offset = self._consume(TokenKind.HEX, "Expect hexadecimal offset.")
+        class_name = self._consume(TokenKind.IDENTIFIER, "Expect identifier.")
+        offset_number = int(offset.literal, 16)
+        return Class(class_name.literal, [], offset_number, 0)
 
-    def parse(self) -> list[ModuleBlock]:
-        statements: list[ModuleBlock] = []
+    def parse(self) -> list[ModuleBlock[Statement]]:
+        statements: list[ModuleBlock[Statement]] = []
         self._advance()
 
-        while self._current[0] is not Token.EOF:
+        while self._current.kind is not TokenKind.EOF:
             statements.append(self._module_declaration())
-            self._match(Whitespace.EmptyLine)
+            self._match(TokenKind.EMPTY_LINE)
         return statements
 
 
 class VTableParser:
-    def __init__(self, token_stream):
-        self._token_stream = token_stream
+    def __init__(self, token_stream: Iterator[Token]) -> None:
+        self._token_stream: Iterator[Token] = token_stream
 
-        self._current: TokenType = ...
-        self._previous: TokenType = ...
+        self._current: Token = Token.eof()
+        self._previous: Token = Token.eof()
 
     def _advance(self) -> None:
         self._previous = self._current
         try:
             self._current = next(self._token_stream)
         except StopIteration:
-            self._current = (Token.EOF, "EOF", 0)
+            self._current = Token(TokenKind.EOF, "EOF", 0)
 
-    def _consume(self, token_type: _TokenType, message: str) -> TokenType:
-        if self._current[0] == token_type:
+    def _consume(self, token_kind: TokenKind, message: str) -> Token:
+        if self._current.kind is token_kind:
             self._advance()
             return self._previous
         raise self._error(message)
 
     def _consume_literal(self, literal: str, message: str) -> None:
-        if self._current[1] == literal:
+        if self._current.literal == literal:
             self._advance()
             return
         raise self._error(message)
 
-    def _check(self, token_type: _TokenType) -> bool:
-        return self._current[0] is token_type
+    def _check(self, token_kind: TokenKind) -> bool:
+        return self._current.kind is token_kind
 
     def _check_literal(self, literal: str) -> bool:
-        return self._current[1] == literal
+        return self._current.literal == literal
 
-    def _match(self, token_type: _TokenType) -> bool:
-        if not self._check(token_type):
+    def _match(self, token_kind: TokenKind) -> bool:
+        if not self._check(token_kind):
             return False
         self._advance()
         return True
@@ -201,39 +196,39 @@ class VTableParser:
 
     def _error(self, message: str) -> NoReturn:
         print(f"Error: {message} Received: {self._current}.", file=sys.stderr)
-        raise ParseException(f"{message} At line {self._current[2]}.")
+        raise ParseException(f"{message} At line {self._current.line}.")
 
     def _module_declaration(self) -> ModuleBlock:
         """
         module_declaration : begin_module vtable_list end_module
         """
-        _, module_begin_literal, _ = self._begin_module()
+        module_begin_literal = self._begin_module().literal
         vtable_lists: list[VTable] = []
-        while self._check(Token.MFlag):
+        while self._check(TokenKind.M_FLAG):
             vtable_lists.append(self._vtable_declaration())
-            self._consume(Whitespace.EmptyLine, "Expect empty line after vtable.")
-        _, module_end_literal, _ = self._end_module()
+            self._consume(TokenKind.EMPTY_LINE, "Expect empty line after vtable.")
+        module_end_literal = self._end_module().literal
         if module_begin_literal != module_end_literal:
             raise ParseException("Module name did not match declared module name.")
-        self._match(Whitespace.EmptyLine)
+        self._match(TokenKind.EMPTY_LINE)
         return ModuleBlock(module_begin_literal, vtable_lists)
 
-    def _begin_module(self) -> TokenType:
+    def _begin_module(self) -> Token:
         """
         begin_module : '<' module '>'
         """
         self._consume_literal("<", "Missing '<' before module name.")
-        token = self._consume(Name.Module, "Invalid module name.")
+        token = self._consume(TokenKind.MODULE, "Invalid module name.")
         self._consume_literal(">", "Missing '>' after module name.")
         return token
 
-    def _end_module(self) -> TokenType:
+    def _end_module(self) -> Token:
         """
         end_module : '<' 'end' module '>'
         """
         self._consume_literal("<", "Missing '<' before 'end'.")
         self._consume_literal("end", "Missing 'end' after '<'.")
-        token = self._consume(Name.Module, "Invalid module name.")
+        token = self._consume(TokenKind.MODULE, "Invalid module name.")
         self._consume_literal(">", "Missing '>' after module name.")
         return token
 
@@ -242,24 +237,26 @@ class VTableParser:
         vtable_declaration : m_flag v_flag a_flag address relative_address (owner_identifier '->') const vtable_identifier
                              'Virtual Functions' '(' number ')' ':' vtable_entry_list
         """
-        _, m_flag, _ = self._consume(Token.MFlag, "Expect m flag.")
-        _, v_flag, _ = self._consume(Token.VFlag, "Expect v flag.")
-        _, a_flag, _ = self._consume(Token.AFlag, "Expect a flag.")
-        _, address, _ = self._consume(Number.Hex, "Expect address as a hex number.")
-        _, relative_address, _ = self._consume(
-            Number.Hex, "Expect relative address as a hex number."
-        )
+        m_flag = self._consume(TokenKind.M_FLAG, "Expect m flag.").literal
+        v_flag = self._consume(TokenKind.V_FLAG, "Expect v flag.").literal
+        a_flag = self._consume(TokenKind.A_FLAG, "Expect a flag.").literal
+        address = self._consume(
+            TokenKind.HEX, "Expect address as a hex number."
+        ).literal
+        relative_address = self._consume(
+            TokenKind.HEX, "Expect relative address as a hex number."
+        ).literal
         owner = ""
 
         if not self._check_literal("const"):
-            _, owner, _ = self._consume(Name.Identifier, "Expect identifier.")
+            owner = self._consume(TokenKind.IDENTIFIER, "Expect identifier.").literal
             self._consume_literal("->", "Expect '->' following identifier.")
         self._consume_literal("const", "Expect 'const' before identifier.")
-        _, identifier, _ = self._consume(Name.Identifier, "Expect identifier.")
+        identifier = self._consume(TokenKind.IDENTIFIER, "Expect identifier.").literal
 
         self._consume_literal("Virtual Functions", "Expect 'Virtual Functions'.")
         self._consume_literal("(", "Expect '('.")
-        _, vtable_count, _ = self._consume(Number, "Expect decimal number.")
+        vtable_count = self._consume(TokenKind.NUMBER, "Expect decimal number.").literal
         self._consume_literal(")", "Expect ')'.")
         self._consume_literal(":", "Expect ':'.")
 
@@ -295,12 +292,14 @@ class VTableParser:
         """
         vtable_entry : number address relative_address function_type function_address
         """
-        _, index, _ = self._consume(Number, "Expect entry index.")
-        _, address, _ = self._consume(Number.Hex, "Expect address.")
-        _, relative_address, _ = self._consume(Number.Hex, "Expect relative address.")
-        _, function_identifier, _ = self._consume(
-            Name.Identifier, "Expect function identifier."
-        )
+        index = self._consume(TokenKind.NUMBER, "Expect entry index.").literal
+        address = self._consume(TokenKind.HEX, "Expect address.").literal
+        relative_address = self._consume(
+            TokenKind.HEX, "Expect relative address."
+        ).literal
+        function_identifier = self._consume(
+            TokenKind.IDENTIFIER, "Expect function identifier."
+        ).literal
 
         index_number = int(index)
         address_number = int(address, base=16)
@@ -314,26 +313,6 @@ class VTableParser:
         statements: list[ModuleBlock] = []
         self._advance()
 
-        while self._current[0] is not Token.EOF:
+        while self._current.kind is not TokenKind.EOF:
             statements.append(self._module_declaration())
         return statements
-
-
-def main():
-    # lexer = InheritanceLexer(r"C:\Users\william.malmgrenhan\Desktop\Class_Dumper\ROTTR\inheritance.txt")
-    # lexer = InheritanceLexer(r"inheritance.txt")
-    with open(r"C:\Users\willi\Desktop\Class_Dumper\GTA5\vtable.txt", "r") as read:
-        text = read.read()
-
-    lexer = Lexer()
-    lexer.tokenize(text)
-    tokens = lexer.tokenize(text)
-    parser = VTableParser(tokens)
-    # parser = InheritanceParser(tokens)
-    statements = parser.parse()
-    for statement in statements:
-        print(statement)
-
-
-if __name__ == "__main__":
-    main()

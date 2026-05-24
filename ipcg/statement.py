@@ -6,7 +6,7 @@ from typing import final, override
 
 class Statement:
     class Visitor:
-        def visit_module_block(self, statement: ModuleBlock):
+        def visit_module_block[T: Statement](self, statement: ModuleBlock[T]):
             pass
 
         def visit_class(self, statement: Class):
@@ -27,9 +27,9 @@ class Statement:
 
 @final
 @dataclass
-class ModuleBlock(Statement):
+class ModuleBlock[T: Statement = Statement](Statement):
     module: str
-    statements: list[Statement]
+    statements: list[T]
 
     @override
     def accept(self, visitor: Statement.Visitor) -> None:

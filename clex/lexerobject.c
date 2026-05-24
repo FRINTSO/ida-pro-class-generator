@@ -245,6 +245,7 @@ lexer_make_token(PyLexerObject* self, PyObject* args)
 static inline void
 lexer_skip_whitespace_impl(PyLexerObject* self)
 {
+	int newlines = 0;
 	for (;;) {
 		char c = lexer_peek_impl(self);
 		switch (c) {
@@ -256,6 +257,7 @@ lexer_skip_whitespace_impl(PyLexerObject* self)
 		case '\n':
 			self->line++;
 			lexer_advance_impl(self);
+			if (newlines >= 2) return;
 			break;
 		default:
 			return;
